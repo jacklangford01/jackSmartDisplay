@@ -1,3 +1,6 @@
+Testing Changes...
+
+
 # SmartDisplayPi 🖥️
 
 Turn your Raspberry Pi into a beautiful, Nest Hub-style smart display! This project creates a stunning carousel of cards featuring weather, calendar, photos, and Home Assistant integration - perfect for your kitchen counter, living room, or anywhere you want a smart display.
