@@ -14,9 +14,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Google APIs setup (for calendar and tasks)
-let calendar = null;
-let tasks = null;
+
 
 // Gemini AI setup
 let gemini = null;
@@ -27,53 +25,56 @@ if (process.env.GEMINI_API_KEY) {
     console.log('⚠️ Gemini API key not found');
 }
 
+const fs = require('fs');
+
+// Google APIs setup (for calendar and tasks)
+let calendar = null;
+let tasks = null;
+
+const CALENDAR_IDS = [
+  'jacklangford2004@gmail.com',
+  'mnlp6igj0d72t8pptd6c8ugqr8@group.calendar.google.com',
+  '3d4ea3a2d8ad36b882e2117f5eb3daaaee1f387d72414c3e58c1f87b76aa3dbc@group.calendar.google.com',
+  '7077c87cf42a0c80ecf5c5cb10538d1270f325d7e26632f05df23ab4adfc64aa@group.calendar.google.com',
+  'eeb57182e3aa63eb09c90261b6217a018d0987ae6e3a82c24ff3c4ec1a2228eb@group.calendar.google.com',
+  'os6gk16ljlrju1vl8f211tdr6g@group.calendar.google.com',
+  '6q7hv3e427q7qr8i6re4al86f0@group.calendar.google.com'
+];
+
 try {
-  const fs = require('fs');
-  const path = require('path');
-  const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  const credentialsPath = path.join(process.cwd(), 'client_secret.json');
   const tokenPath = path.join(process.cwd(), 'token.json');
-  
-  if (credentialsPath && fs.existsSync(credentialsPath)) {
+
+  if (fs.existsSync(credentialsPath) && fs.existsSync(tokenPath)) {
     const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
-    
-    // Check if it's OAuth2 credentials (has installed or web property)
-    if (credentials.installed || credentials.web) {
-      // Load saved token if it exists
-      let auth = null;
-      if (fs.existsSync(tokenPath)) {
-        try {
-          const token = JSON.parse(fs.readFileSync(tokenPath, 'utf8'));
-          auth = google.auth.fromJSON(token);
-          console.log('✅ Loaded existing OAuth2 token');
-        } catch (error) {
-          console.log('⚠️ Failed to load existing token, will need re-authentication');
-        }
-      }
-      
-      if (!auth) {
-        // For server environment, we'll use fallback since OAuth2 requires browser interaction
-        console.log('⚠️ OAuth2 requires browser interaction for initial setup');
-        console.log('📝 Using fallback mock calendar data');
-        console.log('💡 To enable real Google Calendar:');
-        console.log('   1. Run the OAuth2 setup locally with browser access');
-        console.log('   2. Copy the generated token.json to your server');
-      } else {
-        calendar = google.calendar({ version: 'v3', auth });
-        tasks = google.tasks({ version: 'v1', auth });
-        console.log('✅ Google Calendar API initialized successfully with OAuth2');
-        console.log('✅ Google Tasks API initialized successfully with OAuth2');
-      }
+    const token = JSON.parse(fs.readFileSync(tokenPath, 'utf8'));
+
+    const creds = credentials.installed || credentials.web;
+
+    if (!creds) {
+      console.log('⚠️ Credentials file is missing installed/web OAuth config');
     } else {
-      console.log('⚠️ Credentials file is not OAuth2 format (missing installed/web property)');
-      console.log('📝 Using fallback mock calendar data');
+      const { client_id, client_secret, redirect_uris } = creds;
+
+      const auth = new google.auth.OAuth2(
+        client_id,
+        client_secret,
+        redirect_uris[0]
+      );
+
+      auth.setCredentials(token);
+
+      calendar = google.calendar({ version: 'v3', auth });
+      tasks = google.tasks({ version: 'v1', auth });
+
+      console.log('✅ Google Calendar API initialized successfully with OAuth2');
+      console.log('✅ Google Tasks API initialized successfully with OAuth2');
     }
   } else {
-    console.log('⚠️ Google credentials file not found');
-    console.log('📝 Using fallback mock calendar data');
+    console.log('⚠️ client_secret.json or token.json not found');
   }
 } catch (error) {
   console.log('⚠️ Google Calendar API initialization failed:', error.message);
-  console.log('📝 Using fallback mock calendar data');
 }
 
 // Routes
@@ -146,34 +147,49 @@ app.get('/api/photos/:query?', async (req, res) => {
 // Google Calendar API endpoint
 app.get('/api/calendar/events', async (req, res) => {
   try {
-    // Check if Google Calendar API is available
     if (!calendar) {
       console.log('No Google Calendar API available, returning empty calendar data');
       return res.json([]);
     }
 
     const now = new Date();
-    
-    // For all-day events, we need to include today's date
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Start of today
-    
-    // Fetch events for the next 24 hours from now, but include all-day events for today
-    const endTime = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // 24 hours from now
-    
-    const response = await calendar.events.list({
-      calendarId: 'primary',
-      timeMin: today.toISOString(), // Start from beginning of today to catch all-day events
-      timeMax: endTime.toISOString(),
-      singleEvents: true,
-      orderBy: 'startTime',
-      maxResults: 15
+    today.setHours(0, 0, 0, 0);
+
+    const endTime = new Date(now.getTime() + (24 * 60 * 60 * 1000));
+
+    const responses = await Promise.all(
+      CALENDAR_IDS.map(calendarId =>
+        calendar.events.list({
+          calendarId,
+          timeMin: today.toISOString(),
+          timeMax: endTime.toISOString(),
+          singleEvents: true,
+          orderBy: 'startTime',
+          maxResults: 15
+        }).catch(error => {
+          console.error(`Error fetching calendar ${calendarId}:`, error.message);
+          return { data: { items: [] } };
+        })
+      )
+    );
+
+    const allEvents = responses.flatMap(response => response.data.items || []);
+
+    const uniqueEvents = allEvents.filter(
+      (event, index, self) =>
+        index === self.findIndex(e => e.id === event.id)
+    );
+
+    uniqueEvents.sort((a, b) => {
+      const aStart = new Date(a.start.dateTime || a.start.date);
+      const bStart = new Date(b.start.dateTime || b.start.date);
+      return aStart - bStart;
     });
-    
-    res.json(response.data.items || []);
+
+    res.json(uniqueEvents);
   } catch (error) {
     console.error('Error fetching calendar events:', error);
-    // Return empty array on error to prevent hallucination
     res.json([]);
   }
 });
@@ -218,53 +234,52 @@ app.get('/api/tasks', async (req, res) => {
 // Google Calendar API endpoint for next week (agenda view)
 app.get('/api/calendar/agenda', async (req, res) => {
   try {
-    // Check if Google Calendar API is available
     if (!calendar) {
       console.log('No Google Calendar API available, returning mock agenda data');
-      const mockEvents = [];
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(Date.now() + i * 24 * 60 * 60 * 1000);
-        mockEvents.push({
-          id: `mock${i + 1}`,
-          summary: `Event ${i + 1}`,
-          start: { dateTime: new Date(date.getTime() + 9 * 60 * 60 * 1000).toISOString() },
-          end: { dateTime: new Date(date.getTime() + 10 * 60 * 60 * 1000).toISOString() }
-        });
-      }
-      return res.json(mockEvents);
+      return res.json([]);
     }
 
     const now = new Date();
-    const endTime = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)); // Next 7 days
-    
-    // For all-day events, we need to use date-based filtering
+    const endTime = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Start of today
-    
-    const response = await calendar.events.list({
-      calendarId: 'primary',
-      timeMin: today.toISOString(),
-      timeMax: endTime.toISOString(),
-      singleEvents: true,
-      orderBy: 'startTime',
-      maxResults: 50
+    today.setHours(0, 0, 0, 0);
+
+    const responses = await Promise.all(
+      CALENDAR_IDS.map(calendarId =>
+        calendar.events.list({
+          calendarId,
+          timeMin: today.toISOString(),
+          timeMax: endTime.toISOString(),
+          singleEvents: true,
+          orderBy: 'startTime',
+          maxResults: 50
+        }).catch(error => {
+          console.error(`Error fetching agenda calendar ${calendarId}:`, error.message);
+          return { data: { items: [] } };
+        })
+      )
+    );
+
+    const allEvents = responses.flatMap(response => response.data.items || []);
+
+    const uniqueEvents = allEvents.filter(
+      (event, index, self) =>
+        index === self.findIndex(e =>
+          e.id === event.id &&
+          (e.start?.dateTime || e.start?.date) === (event.start?.dateTime || event.start?.date)
+        )
+    );
+
+    uniqueEvents.sort((a, b) => {
+      const aStart = new Date(a.start.dateTime || a.start.date);
+      const bStart = new Date(b.start.dateTime || b.start.date);
+      return aStart - bStart;
     });
-    
-    res.json(response.data.items || []);
+
+    res.json(uniqueEvents);
   } catch (error) {
     console.error('Error fetching calendar agenda:', error);
-    // Return mock data on error
-    const mockEvents = [];
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(Date.now() + i * 24 * 60 * 60 * 1000);
-      mockEvents.push({
-        id: `mock${i + 1}`,
-        summary: `Event ${i + 1}`,
-        start: { dateTime: new Date(date.getTime() + 9 * 60 * 60 * 1000).toISOString() },
-        end: { dateTime: new Date(date.getTime() + 10 * 60 * 60 * 1000).toISOString() }
-      });
-    }
-    res.json(mockEvents);
+    res.json([]);
   }
 });
 

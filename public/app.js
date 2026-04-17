@@ -360,7 +360,7 @@ class SmartDisplay {
     const minute = currentTime.getMinutes();
     let greeting = 'Good evening';
 
-    if (hour < 12) {
+    if (hour < 11) {
         greeting = 'Good morning';
     } else if (hour < 17) {
         greeting = 'Good afternoon';
