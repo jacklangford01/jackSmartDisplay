@@ -1,3 +1,48 @@
+// master function for automation
+function getMasterTimeOfDay() {
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const totalMinutes = hour * 60 + minute;
+
+    if (totalMinutes >= 5 * 60 && totalMinutes < 8 * 60) {
+        return 'earlyMorning';
+    } 
+    else if (totalMinutes >= 8 * 60 && totalMinutes < 11 * 60) {
+        return 'morning';
+    } 
+    else if (totalMinutes >= 11 * 60 && totalMinutes < 17 * 60) {
+        return 'afternoon';
+    } 
+    else if (totalMinutes >= 17 * 60 && totalMinutes < 20 * 60) {
+        return 'evening';
+    } 
+    else if (totalMinutes >= 20 * 60 && totalMinutes < (21 * 60 + 45)) {
+        return 'night';
+    } 
+    else {
+        return 'lateNight';
+    }
+
+    //manual for testing
+    // return 'night';
+}
+
+// blue light filter level based on time of day
+function getBlueLightFilterLevel() {
+    const masterTimeOfDay = getMasterTimeOfDay();
+
+    if (masterTimeOfDay === 'lateNight') {
+        return 'strong';
+    }
+
+    if (masterTimeOfDay === 'night' || masterTimeOfDay === 'earlyMorning') {
+        return 'medium';
+    }
+
+    return 'off';
+}
+
 class SmartDisplay {
     constructor() {
         this.currentCard = 0;
@@ -47,6 +92,7 @@ class SmartDisplay {
             homeAssistantFrame: document.getElementById('homeAssistantFrame'),
             settingsModal: document.getElementById('settingsModal'),
             blackoutOverlay: document.getElementById('blackoutOverlay'),
+            blueLightOverlay: document.getElementById('blueLightOverlay')
         };
     }
 
@@ -63,6 +109,7 @@ class SmartDisplay {
         this.loadCalendarEvents();
         this.loadWeather();
         this.loadPhotos();
+        this.updateBlueLightFilter();
         
         // Optimize intervals based on power mode
         const intervals = this.isLowPowerMode ? {
@@ -1246,6 +1293,22 @@ class SmartDisplay {
         this.enableCarouselNavigation();
     }
 
+    // blue light filter logic
+    updateBlueLightFilter() {
+    const overlay = this.domCache.blueLightOverlay;
+    if (!overlay) return;
+
+    const filterLevel = getBlueLightFilterLevel();
+
+    if (filterLevel === 'strong') {
+        overlay.style.background = 'rgba(255, 140, 0, 0.28)';
+    } else if (filterLevel === 'medium') {
+        overlay.style.background = 'rgba(255, 170, 60, 0.16)';
+    } else {
+        overlay.style.background = 'rgba(255, 140, 0, 0)';
+    }
+        }
+
     async loadHourlyForecastData(dayIndex, grid) {
         try {
             const response = await fetch(`/api/weather?lat=${this.settings.latitude}&lon=${this.settings.longitude}`);
@@ -1360,4 +1423,6 @@ class SmartDisplay {
 let smartDisplay;
 document.addEventListener('DOMContentLoaded', () => {
     smartDisplay = new SmartDisplay();
+
+
 });

@@ -1451,3 +1451,13 @@ body {
     z-index: 999999;
     cursor: none;
 }
+
+#blueLightOverlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: rgba(255, 140, 0, 0);
+    mix-blend-mode: multiply;
+    z-index: 999998;
+    transition: background 0.4s ease;
+}
