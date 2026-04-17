@@ -311,14 +311,25 @@ class SmartDisplay {
         }
     }
 
+    //Change this back to unlock carousel navigation
+
+    
+    // nextCard() {
+    //     const nextIndex = (this.currentCard + 1) % 5;
+    //     this.goToCard(nextIndex);
+    // }
+
+    // previousCard() {
+    //     const prevIndex = this.currentCard === 0 ? 4 : this.currentCard - 1;
+    //     this.goToCard(prevIndex);
+    // }
+
     nextCard() {
-        const nextIndex = (this.currentCard + 1) % 5;
-        this.goToCard(nextIndex);
+    return;
     }
 
     previousCard() {
-        const prevIndex = this.currentCard === 0 ? 4 : this.currentCard - 1;
-        this.goToCard(prevIndex);
+        return;
     }
 
     updateTime() {
