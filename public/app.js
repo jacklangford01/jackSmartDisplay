@@ -34,6 +34,7 @@ class SmartDisplay {
             leftTouchArea: document.getElementById('leftTouchArea'),
             rightTouchArea: document.getElementById('rightTouchArea'),
             photoSlideshow: document.getElementById('photoSlideshow'),
+            greetingMessage: document.getElementById('greetingMessage'),
             timeDisplay: document.querySelector('.time'),
             dateDisplay: document.querySelector('.date'),
             weatherDisplay: document.getElementById('weatherDisplay'),
@@ -341,6 +342,24 @@ class SmartDisplay {
             month: 'long',
             day: 'numeric'
         });
+    
+    const hour = currentTime.getHours();
+    const minute = currentTime.getMinutes();
+    let greeting = 'Good evening';
+
+    if (hour < 12) {
+        greeting = 'Good morning';
+    } else if (hour < 17) {
+        greeting = 'Good afternoon';
+    } else if (hour < 21 || (hour === 21 && minute < 45)) {
+        greeting = 'Good evening';
+    } else {
+        greeting = 'Goodnight';
+    }
+
+    if (this.domCache.greetingMessage) {
+        this.domCache.greetingMessage.textContent = greeting;
+    }
     }
 
     updateAllTimeBars() {
@@ -654,29 +673,87 @@ class SmartDisplay {
     }
 
     async loadPhotos() {
-        try {
-            const query = this.settings.photoQuery || 'nature landscape';
-            const response = await fetch(`/api/photos/${encodeURIComponent(query)}`);
-            const data = await response.json();
+    const hour = new Date().getHours();
 
-            if (data.error) {
-                console.error('Photos API error:', data.error);
-                return;
-            }
+    let timeOfDay = 'afternoon'; // Default to afternoon if time-based loading is disabled
 
-            const newPhotos = data.mediaItems || [];
-            
-            // Only restart slideshow if photos actually changed
-            if (JSON.stringify(this.photos) !== JSON.stringify(newPhotos)) {
-                this.photos = newPhotos;
-                this.currentPhotoIndex = 0;
-                this.startPhotoSlideshow();
-                console.log('Photos refreshed:', this.photos.length, 'images loaded');
-            }
-        } catch (error) {
-            console.error('Error loading photos:', error);
-        }
+    if (hour >= 5 && hour < 8) {
+        timeOfDay = 'earlyMorning';
+    } else if (hour >= 8 && hour < 11
+    ) {
+        timeOfDay = 'morning';
+    } else if (hour >= 11 && hour < 17) {
+        timeOfDay = 'afternoon';
+    } else if (hour >= 17 && hour < 20) {
+        timeOfDay = 'evening';
+    } else {
+        timeOfDay = 'night';
     }
+
+    const localPhotos = {
+        earlyMorning: [
+            { baseUrl: 'images/earlyMorning/m1.jpg' },
+            { baseUrl: 'images/earlyMorning/m2.jpg' },
+            { baseUrl: 'images/earlyMorning/m3.jpg' }
+        ],
+        morning: [
+            { baseUrl: 'images/morning/m1.jpg' },
+            { baseUrl: 'images/morning/m2.jpg' },
+            { baseUrl: 'images/morning/m3.jpg' },
+            { baseUrl: 'images/morning/m4.jpg' },
+            { baseUrl: 'images/morning/m5.jpg' },
+            { baseUrl: 'images/morning/m6.jpg' },
+            { baseUrl: 'images/morning/m7.jpg' }
+        ],
+        afternoon: [
+            { baseUrl: 'images/afternoon/a1.jpg' },
+            { baseUrl: 'images/afternoon/a2.jpg' },
+            { baseUrl: 'images/afternoon/a3.jpg' },
+            { baseUrl: 'images/afternoon/a4.jpg' },
+            { baseUrl: 'images/afternoon/a5.jpg' },
+            { baseUrl: 'images/afternoon/a6.jpg' },
+            { baseUrl: 'images/afternoon/a7.jpg' },
+            { baseUrl: 'images/afternoon/a8.jpg' },
+            { baseUrl: 'images/afternoon/a9.jpg' },
+            { baseUrl: 'images/afternoon/a10.jpg' },
+            { baseUrl: 'images/afternoon/a11.jpg' },
+            { baseUrl: 'images/afternoon/a12.jpg' },
+            { baseUrl: 'images/afternoon/a13.jpg' },
+            { baseUrl: 'images/afternoon/a14.jpg' },
+            { baseUrl: 'images/afternoon/a15.jpg' },
+            { baseUrl: 'images/afternoon/a16.jpg' },
+            { baseUrl: 'images/afternoon/a17.jpg' },
+            { baseUrl: 'images/afternoon/a18.jpg' },
+            { baseUrl: 'images/afternoon/a19.jpg' },
+            { baseUrl: 'images/afternoon/a20.jpg' }
+        ],
+        evening: [
+            { baseUrl: 'images/evening/e1.jpg' },
+            { baseUrl: 'images/evening/e2.jpg' },
+            { baseUrl: 'images/evening/e3.jpg' },
+            { baseUrl: 'images/evening/e4.jpg' },
+            { baseUrl: 'images/evening/e5.jpg' },
+            { baseUrl: 'images/evening/e6.jpg' },
+            { baseUrl: 'images/evening/e7.jpg' },
+            { baseUrl: 'images/evening/e8.jpg' }
+
+        ],
+        night: [
+            { baseUrl: 'images/night/n1.jpg' },
+            { baseUrl: 'images/night/n2.jpg' },
+            { baseUrl: 'images/night/n3.jpg' },
+            { baseUrl: 'images/night/n4.jpg' },
+            { baseUrl: 'images/night/n5.jpg' },
+            // { baseUrl: 'images/night/n6.jpg' },
+            { baseUrl: 'images/night/n7.jpg' },
+            { baseUrl: 'images/night/n8.jpg' }
+        ]
+    };
+
+    this.photos = localPhotos[timeOfDay] || [];
+    this.currentPhotoIndex = 0;
+    this.startPhotoSlideshow();
+}
 
     startPhotoSlideshow() {
         if (this.photos.length === 0) return;
@@ -690,20 +767,20 @@ class SmartDisplay {
             slide.className = `photo-slide ${index === 0 ? 'active' : ''}`;
             
             // Use lower resolution for better performance
-            const imageUrl = photo.baseUrl + '=w1280-h720';
+            const imageUrl = photo.baseUrl;
             slide.style.backgroundImage = `url(${imageUrl})`;
             
             // Add photographer attribution
-            if (photo.photographer && photo.photographerUrl) {
-                const attribution = document.createElement('div');
-                attribution.className = 'photo-attribution';
-                attribution.innerHTML = `
-                    <a href="${photo.photographerUrl}" target="_blank" rel="noopener noreferrer">
-                        Photo by ${photo.photographer}
-                    </a>
-                `;
-                slide.appendChild(attribution);
-            }
+            // if (photo.photographer && photo.photographerUrl) {
+            //     const attribution = document.createElement('div');
+            //     attribution.className = 'photo-attribution';
+            //     attribution.innerHTML = `
+            //         <a href="${photo.photographerUrl}" target="_blank" rel="noopener noreferrer">
+            //             Photo by ${photo.photographer}
+            //         </a>
+            //     `;
+            //     slide.appendChild(attribution);
+            // }
             
             slideshowContainer.appendChild(slide);
         });
@@ -991,8 +1068,8 @@ class SmartDisplay {
         return saved ? JSON.parse(saved) : {
             photoQuery: 'nature landscape',
             haUrl: 'http://your-home-assistant-url:8123',
-            latitude: 40.7128,
-            longitude: -74.0060,
+            latitude: 33.4255,
+            longitude: -111.9400,
             summaryEnabled: true,
             summaryTime: '08:00',
             userName: ''
@@ -1252,7 +1329,7 @@ class SmartDisplay {
         // Re-enable body scrolling on Raspberry Pi
         document.body.style.overflow = '';
         document.body.style.position = '';
-        document.body.style.width = '';
+        document.Sbody.style.width = '';
     }
 }
 
