@@ -25,7 +25,7 @@ function getMasterTimeOfDay() {
     }
 
     //manual for testing
-    // return 'night';
+    // return 'lateNight';
 }
 
 // blue light filter level based on time of day
@@ -92,7 +92,8 @@ class SmartDisplay {
             homeAssistantFrame: document.getElementById('homeAssistantFrame'),
             settingsModal: document.getElementById('settingsModal'),
             blackoutOverlay: document.getElementById('blackoutOverlay'),
-            blueLightOverlay: document.getElementById('blueLightOverlay')
+            blueLightOverlay: document.getElementById('blueLightOverlay'),
+            weatherTrend: document.getElementById('weatherTrend')
         };
     }
 
@@ -132,6 +133,9 @@ class SmartDisplay {
         
         // Update time with throttling
         setInterval(() => this.updateTime(), intervals.time);
+
+        // blue light update
+        setInterval(() => this.updateBlueLightFilter(), intervals.time);
         
         // Update weather less frequently
         setInterval(() => this.loadWeather(), intervals.weather);
@@ -372,6 +376,25 @@ class SmartDisplay {
     //     this.goToCard(prevIndex);
     // }
 
+    // weather function helper:
+    getWeatherDisplayMode() {
+    const timeOfDay = getMasterTimeOfDay();
+
+    if (timeOfDay === 'earlyMorning' || timeOfDay === 'morning') {
+        return 'todayTrend';
+    }
+
+    if (timeOfDay === 'night') {
+        return 'tomorrowPreview';
+    }
+
+    if (timeOfDay === 'lateNight') {
+        return 'hidden';
+    }
+
+    return 'current';
+    }
+
     nextCard() {
     return;
     }
@@ -470,82 +493,159 @@ class SmartDisplay {
         }
     }
 
-    updateWeatherDisplay(weatherData) {
+
+    getWeatherIcon(code) {
+    if (code === 0) return 'fa-sun weather-sunny';
+    if (code >= 1 && code <= 3) return 'fa-cloud weather-cloudy';
+    if (code >= 45 && code <= 48) return 'fa-cloud weather-foggy';
+    if (code >= 51 && code <= 67) return 'fa-cloud-rain weather-rain';
+    if (code >= 71 && code <= 77) return 'fa-snowflake weather-snow';
+    if (code >= 80 && code <= 82) return 'fa-cloud-rain weather-rain';
+    if (code >= 85 && code <= 86) return 'fa-snowflake weather-snow';
+    if (code >= 95 && code <= 99) return 'fa-bolt weather-storm';
+    return 'fa-cloud weather-cloudy';
+}
+
+getWeatherDescription(code) {
+    const descriptions = {
+        0: 'Clear sky',
+        1: 'Partly cloudy',
+        2: 'Partly cloudy',
+        3: 'Overcast',
+        45: 'Foggy',
+        48: 'Depositing rime fog',
+        51: 'Light drizzle',
+        53: 'Moderate drizzle',
+        55: 'Dense drizzle',
+        56: 'Light freezing drizzle',
+        57: 'Dense freezing drizzle',
+        61: 'Slight rain',
+        63: 'Moderate rain',
+        65: 'Heavy rain',
+        66: 'Light freezing rain',
+        67: 'Heavy freezing rain',
+        71: 'Slight snow',
+        73: 'Moderate snow',
+        75: 'Heavy snow',
+        77: 'Snow grains',
+        80: 'Slight rain showers',
+        81: 'Moderate rain showers',
+        82: 'Violent rain showers',
+        85: 'Slight snow showers',
+        86: 'Heavy snow showers',
+        95: 'Thunderstorm',
+        96: 'Thunderstorm with slight hail',
+        99: 'Thunderstorm with heavy hail'
+    };
+    return descriptions[code] || 'Unknown';
+}
+
+  updateWeatherDisplay(weatherData) {
+        const weatherBox = this.domCache.weatherDisplay;
         const tempElement = this.domCache.temperature;
         const conditionElement = this.domCache.condition;
         const iconElement = this.domCache.weatherIcon;
+        const calendarCard = this.domCache.calendarCard;
+        const trendElement = this.domCache.weatherTrend;
 
-        tempElement.textContent = `${Math.round(weatherData.current.temperature_2m)}°F`;
-        conditionElement.textContent = this.getWeatherDescription(weatherData.current.weather_code);
+        const displayMode = this.getWeatherDisplayMode();
 
-        // Update weather icon based on condition
-        const iconClass = this.getWeatherIcon(weatherData.current.weather_code);
-        iconElement.className = `fas ${iconClass}`;
+        if (!weatherBox || !tempElement || !conditionElement || !iconElement) return;
 
-        // Add additional weather details if available
+        // Hide weather and calendar during late night
+        if (displayMode === 'hidden') {
+            weatherBox.style.display = 'none';
+            if (calendarCard) {
+                calendarCard.style.display = 'none';
+            }
+            return;
+        }
+
+        weatherBox.style.display = 'flex';
+
+        // Only show calendar again if you're on the main card
+        if (calendarCard && this.currentCard === 0) {
+            calendarCard.style.display = 'block';
+        }
+
+        // Current weather default
+        const currentTemp = Math.round(weatherData.current.temperature_2m);
+        const currentDesc = this.getWeatherDescription(weatherData.current.weather_code);
+        const currentIcon = this.getWeatherIcon(weatherData.current.weather_code);
+
+        if (displayMode === 'todayTrend' && weatherData.hourly) {
+            const now = new Date();
+            const currentHour = now.getHours();
+
+            const hourly = weatherData.hourly;
+            const trendPoints = [];
+
+            for (let i = 0; i < hourly.time.length; i++) {
+                const hourTime = new Date(hourly.time[i]);
+                const hour = hourTime.getHours();
+
+                if (hour >= currentHour && trendPoints.length < 4) {
+                    trendPoints.push({
+                        hour,
+                        temp: Math.round(hourly.temperature_2m[i]),
+                        code: hourly.weather_code[i]
+                    });
+                }
+            }
+
+            const trendText = trendPoints.map(point => {
+                const hourLabel =
+                    point.hour === 0 ? '12a' :
+                    point.hour < 12 ? `${point.hour}a` :
+                    point.hour === 12 ? '12p' :
+                    `${point.hour - 12}p`;
+
+                return `${hourLabel}: ${point.temp}°`;
+            }).join(' • ');
+
+            tempElement.textContent = `${currentTemp}°F`;
+            conditionElement.textContent = currentDesc;
+            if (trendElement) {
+                trendElement.textContent = trendText;
+            }
+            iconElement.className = `fas ${currentIcon}`;
+            return;
+        }
+
+        if (displayMode === 'tomorrowPreview' && weatherData.daily) {
+            const tomorrowHigh = Math.round(weatherData.daily.temperature_2m_max[1]);
+            const tomorrowLow = Math.round(weatherData.daily.temperature_2m_min[1]);
+            const tomorrowCode = weatherData.daily.weather_code[1];
+            const tomorrowDesc = this.getWeatherDescription(tomorrowCode);
+
+            tempElement.textContent = `${currentTemp}°F`;
+            conditionElement.textContent = `Now: ${currentDesc}`;
+            if (trendElement) {
+                trendElement.textContent = `Tomorrow: ${tomorrowDesc} • H ${tomorrowHigh}° / L ${tomorrowLow}°`;
+            }
+            iconElement.className = `fas ${currentIcon}`;
+            return;
+        }
+
+        // Default current weather view
+        tempElement.textContent = `${currentTemp}°F`;
+        conditionElement.textContent = currentDesc;
+            if (trendElement) {
+                trendElement.textContent = '';
+            }
+        iconElement.className = `fas ${currentIcon}`;
+
         if (weatherData.current.relative_humidity_2m) {
             const humidity = Math.round(weatherData.current.relative_humidity_2m);
             conditionElement.textContent += ` • ${humidity}% humidity`;
         }
-        
+
         if (weatherData.current.wind_speed_10m) {
             const windSpeed = Math.round(weatherData.current.wind_speed_10m);
             const windDirection = this.getWindDirection(weatherData.current.wind_direction_10m);
             const windArrow = this.getWindArrow(weatherData.current.wind_direction_10m);
             conditionElement.innerHTML += ` • ${windArrow} ${windSpeed} mph ${windDirection}`;
         }
-        
-        if (weatherData.current.wind_gusts_10m) {
-            const windGust = Math.round(weatherData.current.wind_gusts_10m);
-            conditionElement.textContent += ` • gusts to ${windGust} mph`;
-        }
-    }
-
-    getWeatherIcon(code) {
-        // Simplified weather icon mapping
-        if (code === 0) return 'fa-sun weather-sunny';
-        if (code >= 1 && code <= 3) return 'fa-cloud weather-cloudy';
-        if (code >= 45 && code <= 48) return 'fa-cloud weather-foggy';
-        if (code >= 51 && code <= 67) return 'fa-cloud-rain weather-rain';
-        if (code >= 71 && code <= 77) return 'fa-snowflake weather-snow';
-        if (code >= 80 && code <= 82) return 'fa-cloud-rain weather-rain';
-        if (code >= 85 && code <= 86) return 'fa-snowflake weather-snow';
-        if (code >= 95 && code <= 99) return 'fa-bolt weather-storm';
-        return 'fa-cloud weather-cloudy';
-    }
-
-    getWeatherDescription(code) {
-        const descriptions = {
-            0: 'Clear sky',
-            1: 'Partly cloudy',
-            2: 'Partly cloudy',
-            3: 'Overcast',
-            45: 'Foggy',
-            48: 'Depositing rime fog',
-            51: 'Light drizzle',
-            53: 'Moderate drizzle',
-            55: 'Dense drizzle',
-            56: 'Light freezing drizzle',
-            57: 'Dense freezing drizzle',
-            61: 'Slight rain',
-            63: 'Moderate rain',
-            65: 'Heavy rain',
-            66: 'Light freezing rain',
-            67: 'Heavy freezing rain',
-            71: 'Slight snow',
-            73: 'Moderate snow',
-            75: 'Heavy snow',
-            77: 'Snow grains',
-            80: 'Slight rain showers',
-            81: 'Moderate rain showers',
-            82: 'Violent rain showers',
-            85: 'Slight snow showers',
-            86: 'Heavy snow showers',
-            95: 'Thunderstorm',
-            96: 'Thunderstorm with slight hail',
-            99: 'Thunderstorm with heavy hail'
-        };
-        return descriptions[code] || 'Unknown';
     }
 
     getWindDirection(degrees) {
