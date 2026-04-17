@@ -45,7 +45,8 @@ class SmartDisplay {
             agendaContent: document.getElementById('agendaContent'),
             summaryContent: document.getElementById('summaryContent'),
             homeAssistantFrame: document.getElementById('homeAssistantFrame'),
-            settingsModal: document.getElementById('settingsModal')
+            settingsModal: document.getElementById('settingsModal'),
+            blackoutOverlay: document.getElementById('blackoutOverlay'),
         };
     }
 
@@ -313,7 +314,7 @@ class SmartDisplay {
 
     //Change this back to unlock carousel navigation
 
-    
+
     // nextCard() {
     //     const nextIndex = (this.currentCard + 1) % 5;
     //     this.goToCard(nextIndex);
@@ -355,6 +356,7 @@ class SmartDisplay {
         });
     
     const hour = currentTime.getHours();
+    // const hour = 23;
     const minute = currentTime.getMinutes();
     let greeting = 'Good evening';
 
@@ -371,6 +373,15 @@ class SmartDisplay {
     if (this.domCache.greetingMessage) {
         this.domCache.greetingMessage.textContent = greeting;
     }
+
+        const shouldBlackout =
+        hour > 22 ||
+        hour < 7;
+
+    if (this.domCache.blackoutOverlay) {
+        this.domCache.blackoutOverlay.style.display = shouldBlackout ? 'block' : 'none';
+    }
+
     }
 
     updateAllTimeBars() {
@@ -1086,26 +1097,27 @@ class SmartDisplay {
             userName: ''
         };
     }
+// if hourly summaries are enabled can re implement this...
 
-    checkHourlySummary() {
-        if (!this.settings.summaryEnabled) return;
+    // checkHourlySummary() {
+    //     if (!this.settings.summaryEnabled) return;
         
-        const now = new Date();
-        const currentHour = now.getHours();
+    //     const now = new Date();
+    //     const currentHour = now.getHours();
         
-        // Reset summaryShown flag every hour to allow showing summary again
-        if (this.lastSummaryHour !== currentHour) {
-            this.summaryShown = false;
-            this.lastSummaryHour = currentHour;
-            console.log('Hourly summary reset for new hour:', currentHour);
-        }
+    //     // Reset summaryShown flag every hour to allow showing summary again
+    //     if (this.lastSummaryHour !== currentHour) {
+    //         this.summaryShown = false;
+    //         this.lastSummaryHour = currentHour;
+    //         console.log('Hourly summary reset for new hour:', currentHour);
+    //     }
         
-        // Check if it's time to show the summary (every hour on the hour)
-        if (now.getMinutes() === 0 && !this.summaryShown) {
-            console.log('Auto-swiping to hourly summary at:', currentHour + ':00');
-            this.showDailySummary();
-        }
-    }
+    //     // Check if it's time to show the summary (every hour on the hour)
+    //     if (now.getMinutes() === 0 && !this.summaryShown) {
+    //         console.log('Auto-swiping to hourly summary at:', currentHour + ':00');
+    //         this.showDailySummary();
+    //     }
+    // }
 
     showDailySummary() {
         this.summaryShown = true;

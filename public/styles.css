@@ -1441,3 +1441,13 @@ body {
     text-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
     letter-spacing: 0.5px;
 }
+
+
+#blackoutOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 999999;
+    cursor: none;
+}
