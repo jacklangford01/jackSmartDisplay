@@ -5,28 +5,126 @@ function getMasterTimeOfDay() {
     const minute = now.getMinutes();
     const totalMinutes = hour * 60 + minute;
 
-    if (totalMinutes >= 5 * 60 && totalMinutes < 8 * 60) {
-        return 'earlyMorning';
-    } 
-    else if (totalMinutes >= 8 * 60 && totalMinutes < 11 * 60) {
-        return 'morning';
-    } 
-    else if (totalMinutes >= 11 * 60 && totalMinutes < 17 * 60) {
-        return 'afternoon';
-    } 
-    else if (totalMinutes >= 17 * 60 && totalMinutes < 20 * 60) {
-        return 'evening';
-    } 
-    else if (totalMinutes >= 20 * 60 && totalMinutes < (21 * 60 + 45)) {
-        return 'night';
-    } 
-    else {
-        return 'lateNight';
-    }
+    // if (totalMinutes >= 5 * 60 && totalMinutes < 8 * 60) {
+    //     return 'earlyMorning';
+    // } 
+    // else if (totalMinutes >= 8 * 60 && totalMinutes < 11 * 60) {
+    //     return 'morning';
+    // } 
+    // else if (totalMinutes >= 11 * 60 && totalMinutes < 17 * 60) {
+    //     return 'afternoon';
+    // } 
+    // else if (totalMinutes >= 17 * 60 && totalMinutes < 20 * 60) {
+    //     return 'evening';
+    // } 
+    // else if (totalMinutes >= 20 * 60 && totalMinutes < (21 * 60 + 45)) {
+    //     return 'night';
+    // } 
+    // else {
+    //     return 'lateNight';
+    // }
 
     //manual for testing
-    // return 'lateNight';
+
+    return 'afternoon';
+
 }
+
+//settings for stocks and news...
+const DASHBOARD_CONFIG = {
+    cycleIntervalMs: 12000,
+
+    morningBriefTabs: [
+        {
+            label: 'Commute',
+            icon: 'fa-road',
+            main: '22 min',
+            sub: 'Home to campus via Loop 202',
+            detail: 'Moderate traffic with one slowdown'
+        },
+        {
+            label: 'Next Up',
+            icon: 'fa-hourglass-half',
+            main: 'Class in 42 min',
+            sub: 'Leave by 8:15 AM',
+            detail: 'Bring laptop and charger'
+        },
+        {
+            label: 'Weather',
+            icon: 'fa-sun',
+            main: '96° / 71°',
+            sub: 'Sunny and hot later',
+            detail: 'UV very high this afternoon'
+        },
+        {
+            label: 'Schedule',
+            icon: 'fa-calendar-day',
+            main: '3 events today',
+            sub: 'Class • Meeting • Gym',
+            detail: 'Free from 1:00 PM to 3:30 PM'
+        },
+        {
+            label: 'Markets',
+            icon: 'fa-chart-line',
+            main: 'QQQ led yesterday',
+            sub: 'SPY +0.4% • QQQ +0.7%',
+            detail: 'Large-cap tech stayed firm'
+        },
+        {
+            label: 'News',
+            icon: 'fa-newspaper',
+            main: 'Top headline',
+            sub: 'Markets watching rates and earnings',
+            detail: 'Investors remain focused on AI demand'
+        }
+    ],
+
+    eveningTabs: [
+        {
+            label: 'Tomorrow',
+            icon: 'fa-calendar-check',
+            main: '2 key events tomorrow',
+            sub: '10:00 AM meeting',
+            detail: 'Prep notes tonight if needed'
+        },
+        {
+            label: 'Schedule',
+            icon: 'fa-calendar-day',
+            main: 'Tomorrow starts at 10:00',
+            sub: 'Light morning schedule',
+            detail: 'Good window for focused work'
+        },
+        {
+            label: 'Markets',
+            icon: 'fa-chart-line',
+            main: 'US markets closed mixed',
+            sub: 'Tech outperformed',
+            detail: 'Watch futures in the morning'
+        },
+        {
+            label: 'Crypto',
+            icon: 'fa-bitcoin-sign',
+            main: 'BTC $68.4K',
+            sub: 'ETH $3.4K • SOL $154',
+            detail: 'Crypto active overnight'
+        },
+        {
+            label: 'Alerts',
+            icon: 'fa-triangle-exclamation',
+            main: 'Heat Alert',
+            sub: 'Hot afternoon tomorrow',
+            detail: 'Hydrate before heading out',
+            level: 'warning'
+        },
+        {
+            label: 'Global',
+            icon: 'fa-earth-americas',
+            main: 'Asia opens tonight',
+            sub: 'Europe data due in morning',
+            detail: 'Overseas markets may set early tone'
+        }
+    ]
+};
 
 // blue light filter level based on time of day
 function getBlueLightFilterLevel() {
@@ -66,6 +164,10 @@ class SmartDisplay {
         // Navigation control flags
         this.carouselNavigationDisabled = false;
         this.swipeEventsDisabled = false;
+
+        //Stocks logic
+        this.dashboardTabIndex = 0;
+        this.dashboardTabTimer = null;
         
         this.init();
     }
@@ -74,6 +176,9 @@ class SmartDisplay {
         // Cache frequently accessed DOM elements
         this.domCache = {
             carouselWrapper: document.getElementById('carouselWrapper'),
+            dashboardStrip: document.getElementById('dashboardStrip'),
+            dashboardStripHeader: document.getElementById('dashboardStripHeader'),
+            dashboardStripBody: document.getElementById('dashboardStripBody'),
             calendarCard: document.getElementById('calendarCard'),
             calendarContent: document.getElementById('calendarContent'),
             leftTouchArea: document.getElementById('leftTouchArea'),
@@ -85,7 +190,7 @@ class SmartDisplay {
             weatherDisplay: document.getElementById('weatherDisplay'),
             temperature: document.querySelector('.temperature'),
             condition: document.querySelector('.condition'),
-            weatherIcon: document.querySelector('.weather-icon i'),
+            weatherIcon: document.querySelector('.weather-header i'),
             forecastContent: document.getElementById('forecastContent'),
             agendaContent: document.getElementById('agendaContent'),
             summaryContent: document.getElementById('summaryContent'),
@@ -93,7 +198,10 @@ class SmartDisplay {
             settingsModal: document.getElementById('settingsModal'),
             blackoutOverlay: document.getElementById('blackoutOverlay'),
             blueLightOverlay: document.getElementById('blueLightOverlay'),
-            weatherTrend: document.getElementById('weatherTrend')
+            weatherTrend: document.getElementById('weatherTrend'),
+            dashboardStrip: document.getElementById('dashboardStrip'),
+            dashboardStripHeader: document.getElementById('dashboardStripHeader'),
+            dashboardStripBody: document.getElementById('dashboardStripBody')
         };
     }
 
@@ -111,6 +219,8 @@ class SmartDisplay {
         this.loadWeather();
         this.loadPhotos();
         this.updateBlueLightFilter();
+        this.renderDashboardStrip();
+        this.dashboardTabTimer = setInterval(() => this.cycleDashboardStrip(), DASHBOARD_CONFIG.cycleIntervalMs);
         
         // Optimize intervals based on power mode
         const intervals = this.isLowPowerMode ? {
@@ -161,6 +271,12 @@ class SmartDisplay {
         // Update time bars less frequently
         this.updateAllTimeBars();
         setInterval(() => this.updateAllTimeBars(), intervals.time);
+
+        //display refresh
+        setInterval(() => this.animateTextRefresh(), 600000);
+
+        // dashboard strip
+        setInterval(() => this.renderDashboardStrip(), intervals.time);
         
         // Debounced resize handler
         let resizeTimeout;
@@ -173,6 +289,96 @@ class SmartDisplay {
             }, 250);
         });
     }
+
+//stock display logic:
+getDashboardTabSet() {
+    const timeOfDay = getMasterTimeOfDay();
+
+    if (timeOfDay === 'earlyMorning' || timeOfDay === 'morning') {
+        return {
+            title: 'Morning Brief',
+            tabs: DASHBOARD_CONFIG.morningBriefTabs
+        };
+    }
+
+    if (timeOfDay === 'afternoon') {
+        return {
+            title: 'Day Watch',
+            tabs: DASHBOARD_CONFIG.morningBriefTabs
+        };
+    }
+
+    if (timeOfDay === 'evening' || timeOfDay === 'night') {
+        return {
+            title: 'Evening Wrap',
+            tabs: DASHBOARD_CONFIG.eveningTabs
+        };
+    }
+
+    return null;
+}
+
+renderDashboardStrip() {
+    const strip = this.domCache.dashboardStrip;
+    const header = this.domCache.dashboardStripHeader;
+    const body = this.domCache.dashboardStripBody;
+
+    if (!strip || !header || !body) return;
+
+    const tabSet = this.getDashboardTabSet();
+
+    if (!tabSet) {
+        strip.style.display = 'none';
+        return;
+    }
+
+    strip.style.display = 'block';
+    header.textContent = tabSet.title;
+
+    const tabs = tabSet.tabs;
+    const activeIndex = this.dashboardTabIndex % tabs.length;
+    const active = tabs[activeIndex];
+
+    const buttons = tabs.map((tab, i) => `
+        <button class="brief-tab ${i === activeIndex ? 'active' : ''}" data-tab="${i}">
+            <i class="fas ${tab.icon}"></i>
+            <span>${tab.label}</span>
+        </button>
+    `).join('');
+
+    body.innerHTML = `
+        <div class="brief-tabs-row">
+            ${buttons}
+        </div>
+
+        <div class="brief-panel ${active.level || ''}">
+            <div class="brief-panel-label">
+                <i class="fas ${active.icon}"></i>
+                <span>${active.label}</span>
+            </div>
+
+            <div class="brief-panel-main">${active.main}</div>
+            <div class="brief-panel-sub">${active.sub}</div>
+            <div class="brief-panel-detail">${active.detail}</div>
+        </div>
+    `;
+
+    body.querySelectorAll('.brief-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            this.dashboardTabIndex = Number(btn.dataset.tab);
+            this.renderDashboardStrip();
+        });
+    });
+}
+
+cycleDashboardStrip() {
+    const tabSet = this.getDashboardTabSet();
+    if (!tabSet) return;
+
+    this.dashboardTabIndex = (this.dashboardTabIndex + 1) % tabSet.tabs.length;
+    this.renderDashboardStrip();
+}
+    
 
     setupEventListeners() {
         // Touch areas for swipe gestures
@@ -402,6 +608,24 @@ class SmartDisplay {
     previousCard() {
         return;
     }
+
+    // to help the display not ware as fast
+    animateTextRefresh() {
+    const targets = document.querySelectorAll(
+        '.time, .date, .greeting, .temperature, .condition, .weather-trend, .calendar-event, .quote-text'
+    );
+
+    targets.forEach(el => {
+        el.classList.add('display-text-fade');
+        el.classList.add('display-text-hidden');
+    });
+
+    setTimeout(() => {
+        targets.forEach(el => {
+            el.classList.remove('display-text-hidden');
+        });
+    }, 1800);
+}
 
     updateTime() {
         const now = Date.now();

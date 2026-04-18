@@ -25,16 +25,35 @@
                             </div>
                         </div>
                         
-                        <!-- Calendar Events Card (Upper Right) -->
-                        <div class="calendar-card" id="calendarCard">
-                            <div class="calendar-header">
-                                <i class="fas fa-calendar-alt"></i>
-                                <span>Upcoming Events</span>
+                            <div class="corner-stack">
+
+                                <div class="calendar-card" id="calendarCard">
+                                    <div class="calendar-header">
+                                        <i class="fas fa-calendar-alt"></i>
+                                        <span>Upcoming Events</span>
+                                    </div>
+                                    <div class="calendar-content" id="calendarContent">
+                                        <div class="loading">Loading events...</div>
+                                    </div>
+                                </div>
+
+                                    <div class="weather-display" id="weatherDisplay">
+
+                                        <div class="weather-header">
+                                            <i class="fas fa-cloud-sun"></i>
+                                            <span>Weather Updates</span>
+                                        </div>
+
+                                        <div class="weather-body">
+                                            <div class="weather-inner">
+                                                <div class="temperature">22°C</div>
+                                                <div class="condition">Sunny</div>
+                                                <div class="weather-trend" id="weatherTrend"></div>
+                                            </div>
+                                        </div>
+
+                                    </div>
                             </div>
-                            <div class="calendar-content" id="calendarContent">
-                                <div class="loading">Loading events...</div>
-                            </div>
-                        </div>
                         
                         <!-- Weather and Time Overlay -->
                         <div class="overlay-info">
@@ -42,16 +61,12 @@
                                 <div class="greeting" id="greetingMessage">Good evening</div>
                                 <div class="time">12:00</div>
                                 <div class="date">January 1, 2024</div>
-                                <div class="weather-display" id="weatherDisplay">
-                                    <div class="weather-icon">
-                                        <i class="fas fa-sun"></i>
+
+                                
+                                    <div class="dashboard-strip" id="dashboardStrip">
+                                        <div class="dashboard-strip-header" id="dashboardStripHeader">Morning Brief</div>
+                                        <div class="dashboard-strip-body" id="dashboardStripBody"></div>
                                     </div>
-                                    <div class="weather-info">
-                                        <div class="temperature">22°C</div>
-                                        <div class="condition">Sunny</div>
-                                        <div class="weather-trend" id="weatherTrend"></div>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>
