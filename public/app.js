@@ -26,7 +26,8 @@ function getMasterTimeOfDay() {
 
     //manual for testing
 
-    return 'afternoon';
+    return 'night';
+
 
 }
 
@@ -46,22 +47,22 @@ const DASHBOARD_CONFIG = {
             label: 'Next Up',
             icon: 'fa-hourglass-half',
             main: 'Class in 42 min',
-            sub: 'Leave by 8:15 AM',
-            detail: 'Bring laptop and charger'
+            sub: 'failed to load schedule data',
+            detail: 'this is mock data'
         },
         {
             label: 'Weather',
             icon: 'fa-sun',
             main: '96° / 71°',
-            sub: 'Sunny and hot later',
-            detail: 'UV very high this afternoon'
+            sub: 'failed to load weather data',
+            detail: 'this is mock data'
         },
         {
             label: 'Schedule',
             icon: 'fa-calendar-day',
             main: '3 events today',
-            sub: 'Class • Meeting • Gym',
-            detail: 'Free from 1:00 PM to 3:30 PM'
+            sub: 'failed to load calendar data',
+            detail: 'this is mock data'
         },
         {
             label: 'Markets',
@@ -84,15 +85,15 @@ const DASHBOARD_CONFIG = {
             label: 'Tomorrow',
             icon: 'fa-calendar-check',
             main: '2 key events tomorrow',
-            sub: '10:00 AM meeting',
-            detail: 'Prep notes tonight if needed'
+            sub: 'not loaded schedule data',
+            detail: 'mock data'
         },
         {
             label: 'Schedule',
             icon: 'fa-calendar-day',
             main: 'Tomorrow starts at 10:00',
-            sub: 'Light morning schedule',
-            detail: 'Good window for focused work'
+            sub: 'failed to load calendar data',
+            detail: 'this is mock data'
         },
         {
             label: 'Markets',
@@ -150,7 +151,15 @@ class SmartDisplay {
         this.settings = this.loadSettings();
         this.summaryShown = false;
         this.lastSummaryDate = new Date().toDateString();
-        
+
+        /// Tabs logic
+        this.liveWeatherTab = null;
+
+        this.liveNextUpTab = null;
+        this.liveMorningScheduleTab = null;
+        // this.liveEveningScheduleTab = null;
+        this.liveTomorrowTab = null;
+
         // Cache DOM elements for better performance
         this.domCache = {};
         this.cacheDOMElements();
@@ -216,6 +225,7 @@ class SmartDisplay {
         this.setupEventListeners();
         this.updateTime();
         this.loadCalendarEvents();
+        this.loadEveningScheduleEvents();
         this.loadWeather();
         this.loadPhotos();
         this.updateBlueLightFilter();
@@ -252,6 +262,7 @@ class SmartDisplay {
         
         // Update calendar less frequently
         setInterval(() => this.loadCalendarEvents(), intervals.calendar);
+        setInterval(() => this.loadEveningScheduleEvents(), intervals.calendar);
         
         // Refresh photos less frequently
         setInterval(() => this.loadPhotos(), intervals.photos);
@@ -293,26 +304,50 @@ class SmartDisplay {
 //stock display logic:
 getDashboardTabSet() {
     const timeOfDay = getMasterTimeOfDay();
+    let tabSet = null;
 
     if (timeOfDay === 'earlyMorning' || timeOfDay === 'morning') {
-        return {
+        tabSet = {
             title: 'Morning Brief',
             tabs: DASHBOARD_CONFIG.morningBriefTabs
         };
+
+        tabSet = window.TabHelpers.applyLiveWeatherTab(tabSet, this.liveWeatherTab);
+        tabSet = window.TabHelpers.applyLiveCalendarTabs(tabSet, {
+            'Next Up': this.liveNextUpTab,
+            'Schedule': this.liveMorningScheduleTab
+        });
+
+        return tabSet;
     }
 
     if (timeOfDay === 'afternoon') {
-        return {
+        tabSet = {
             title: 'Day Watch',
             tabs: DASHBOARD_CONFIG.morningBriefTabs
         };
+
+        tabSet = window.TabHelpers.applyLiveWeatherTab(tabSet, this.liveWeatherTab);
+        tabSet = window.TabHelpers.applyLiveCalendarTabs(tabSet, {
+            'Next Up': this.liveNextUpTab,
+            'Schedule': this.liveMorningScheduleTab
+        });
+
+        return tabSet;
     }
 
     if (timeOfDay === 'evening' || timeOfDay === 'night') {
-        return {
+        tabSet = {
             title: 'Evening Wrap',
             tabs: DASHBOARD_CONFIG.eveningTabs
         };
+
+        tabSet = window.TabHelpers.applyLiveCalendarTabs(tabSet, {
+            'Schedule': this.liveEveningScheduleTab,
+            'Tomorrow': this.liveTomorrowTab
+        });
+
+        return tabSet;
     }
 
     return null;
@@ -697,25 +732,31 @@ cycleDashboardStrip() {
     }
 
     async loadWeather() {
-        try {
-            if (!this.settings.latitude || !this.settings.longitude) {
-                console.log('Weather coordinates not configured');
-                return;
+            try {
+                if (!this.settings.latitude || !this.settings.longitude) {
+                    console.log('Weather coordinates not configured');
+                    return;
+                }
+
+                const response = await fetch(`/api/weather?lat=${this.settings.latitude}&lon=${this.settings.longitude}`);
+                const weatherData = await response.json();
+
+                if (weatherData.error) {
+                    console.error('Weather API error:', weatherData.error);
+                    return;
+                }
+
+                this.liveWeatherTab = window.TabHelpers.buildWeatherTab(
+                    weatherData,
+                    this.getWeatherDescription.bind(this)
+                );
+
+                this.updateWeatherDisplay(weatherData);
+                this.renderDashboardStrip();
+            } catch (error) {
+                console.error('Error loading weather:', error);
             }
-
-            const response = await fetch(`/api/weather?lat=${this.settings.latitude}&lon=${this.settings.longitude}`);
-            const weatherData = await response.json();
-
-            if (weatherData.error) {
-                console.error('Weather API error:', weatherData.error);
-                return;
-            }
-
-            this.updateWeatherDisplay(weatherData);
-        } catch (error) {
-            console.error('Error loading weather:', error);
         }
-    }
 
 
     getWeatherIcon(code) {
@@ -887,10 +928,40 @@ getWeatherDescription(code) {
             const response = await fetch('/api/calendar/events');
             const events = await response.json();
 
+            this.liveNextUpTab = window.TabHelpers.buildNextUpTab(events);
+            this.liveMorningScheduleTab = window.TabHelpers.buildMorningScheduleTab(events);
+            // this.liveEveningScheduleTab = window.TabHelpers.buildEveningScheduleTab(events);
+
             this.updateCalendarDisplay(events);
+            this.renderDashboardStrip();
         } catch (error) {
             console.error('Error loading calendar events:', error);
+
+            this.liveNextUpTab = null;
+            // this.liveMorningScheduleTab = null;
+            this.liveEveningScheduleTab = null;
+
             this.updateCalendarDisplay([]);
+            this.renderDashboardStrip();
+        }
+    }
+
+    async loadEveningScheduleEvents() {
+        try {
+            const response = await fetch('/api/calendar/agenda');
+            const events = await response.json();
+
+            this.liveEveningScheduleTab = window.TabHelpers.buildEveningScheduleTab(events);
+            this.liveTomorrowTab = window.TabHelpers.buildTomorrowTab(events);
+
+            this.renderDashboardStrip();
+        } catch (error) {
+            console.error('Error loading evening schedule events:', error);
+
+            this.liveEveningScheduleTab = null;
+            this.liveTomorrowTab = null;
+
+            this.renderDashboardStrip();
         }
     }
 
