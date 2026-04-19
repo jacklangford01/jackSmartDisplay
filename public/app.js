@@ -5,28 +5,28 @@ function getMasterTimeOfDay() {
     const minute = now.getMinutes();
     const totalMinutes = hour * 60 + minute;
 
-    // if (totalMinutes >= 5 * 60 && totalMinutes < 8 * 60) {
-    //     return 'earlyMorning';
-    // } 
-    // else if (totalMinutes >= 8 * 60 && totalMinutes < 11 * 60) {
-    //     return 'morning';
-    // } 
-    // else if (totalMinutes >= 11 * 60 && totalMinutes < 17 * 60) {
-    //     return 'afternoon';
-    // } 
-    // else if (totalMinutes >= 17 * 60 && totalMinutes < 20 * 60) {
-    //     return 'evening';
-    // } 
-    // else if (totalMinutes >= 20 * 60 && totalMinutes < (21 * 60 + 45)) {
-    //     return 'night';
-    // } 
-    // else {
-    //     return 'lateNight';
-    // }
+    if (totalMinutes >= 5 * 60 && totalMinutes < 8 * 60) {
+        return 'earlyMorning';
+    } 
+    else if (totalMinutes >= 8 * 60 && totalMinutes < 11 * 60) {
+        return 'morning';
+    } 
+    else if (totalMinutes >= 11 * 60 && totalMinutes < 17 * 60) {
+        return 'afternoon';
+    } 
+    else if (totalMinutes >= 17 * 60 && totalMinutes < 20 * 60) {
+        return 'evening';
+    } 
+    else if (totalMinutes >= 20 * 60 && totalMinutes < (21 * 60 + 45)) {
+        return 'night';
+    } 
+    else {
+        return 'lateNight';
+    }
 
     //manual for testing
 
-    return 'morning';
+    // return 'morning';
 
 
 }
