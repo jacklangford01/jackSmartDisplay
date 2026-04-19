@@ -5,28 +5,28 @@ function getMasterTimeOfDay() {
     const minute = now.getMinutes();
     const totalMinutes = hour * 60 + minute;
 
-    if (totalMinutes >= 5 * 60 && totalMinutes < 8 * 60) {
-        return 'earlyMorning';
-    } 
-    else if (totalMinutes >= 8 * 60 && totalMinutes < 11 * 60) {
-        return 'morning';
-    } 
-    else if (totalMinutes >= 11 * 60 && totalMinutes < 17 * 60) {
-        return 'afternoon';
-    } 
-    else if (totalMinutes >= 17 * 60 && totalMinutes < 20 * 60) {
-        return 'evening';
-    } 
-    else if (totalMinutes >= 20 * 60 && totalMinutes < (21 * 60 + 45)) {
-        return 'night';
-    } 
-    else {
-        return 'lateNight';
-    }
+    // if (totalMinutes >= 5 * 60 && totalMinutes < 8 * 60) {
+    //     return 'earlyMorning';
+    // } 
+    // else if (totalMinutes >= 8 * 60 && totalMinutes < 11 * 60) {
+    //     return 'morning';
+    // } 
+    // else if (totalMinutes >= 11 * 60 && totalMinutes < 17 * 60) {
+    //     return 'afternoon';
+    // } 
+    // else if (totalMinutes >= 17 * 60 && totalMinutes < 20 * 60) {
+    //     return 'evening';
+    // } 
+    // else if (totalMinutes >= 20 * 60 && totalMinutes < (21 * 60 + 45)) {
+    //     return 'night';
+    // } 
+    // else {
+    //     return 'lateNight';
+    // }
 
     //manual for testing
 
-    // return 'morning';
+    return 'morning';
 
 
 }
@@ -323,7 +323,7 @@ getDashboardTabSet() {
 
     if (timeOfDay === 'earlyMorning' || timeOfDay === 'morning') {
         tabSet = {
-            title: 'Morning Brief',
+            title: 'Morning Brief...',
             tabs: DASHBOARD_CONFIG.morningBriefTabs
         };
 
@@ -341,7 +341,7 @@ getDashboardTabSet() {
 
     if (timeOfDay === 'afternoon') {
         tabSet = {
-            title: 'Day Watch',
+            title: 'Day Watch...',
             tabs: DASHBOARD_CONFIG.morningBriefTabs
         };
 
@@ -359,7 +359,7 @@ getDashboardTabSet() {
 
     if (timeOfDay === 'evening' || timeOfDay === 'night') {
         tabSet = {
-            title: 'Evening Wrap',
+            title: 'Evening Wrap...',
             tabs: DASHBOARD_CONFIG.eveningTabs
         };
 
@@ -386,56 +386,76 @@ renderDashboardStrip() {
 
     const tabSet = this.getDashboardTabSet();
 
-    if (!tabSet) {
+    if (!tabSet || !tabSet.tabs || !tabSet.tabs.length) {
         strip.style.display = 'none';
         return;
     }
 
     strip.style.display = 'block';
-    header.textContent = tabSet.title;
+    header.innerHTML = '';
 
     const tabs = tabSet.tabs;
-    const activeIndex = this.dashboardTabIndex % tabs.length;
-    const active = tabs[activeIndex];
+    const startIndex = this.dashboardTabIndex % tabs.length;
 
-    const buttons = tabs.map((tab, i) => `
-        <button class="brief-tab ${i === activeIndex ? 'active' : ''}" data-tab="${i}">
-            <i class="fas ${tab.icon}"></i>
-            <span>${tab.label}</span>
-        </button>
-    `).join('');
+    const visibleTabs = [
+        tabs[startIndex],
+        tabs[(startIndex + 1) % tabs.length],
+        tabs[(startIndex + 2) % tabs.length]
+    ];
+
+    const statusIcons = tabs.map((tab, i) => {
+        const isActive = i === startIndex;
+        return `
+            <div class="brief-status-icon ${isActive ? 'active' : ''}" title="${tab.label}">
+                <i class="fas ${tab.icon}"></i>
+            </div>
+        `;
+    }).join('');
 
     body.innerHTML = `
-        <div class="brief-tabs-row">
-            ${buttons}
+
+        <div class="brief-top-row">
+            <div class="brief-top-title">${tabSet.title}</div>
+
+            <div class="brief-status-track">
+                ${statusIcons}
+            </div>
         </div>
 
-        <div class="brief-panel ${active.level || ''}">
-            <div class="brief-panel-label">
-                <i class="fas ${active.icon}"></i>
-                <span>${active.label}</span>
-            </div>
+        <div class="brief-list brief-list-animate">
+            ${visibleTabs.map((tab, index) => `
+                <div class="brief-list-item ${index === 0 ? 'primary' : 'secondary'} ${tab.level || ''}">
+                    <div class="brief-list-label">
+                        <i class="fas ${tab.icon}"></i>
+                        <span>${tab.label}</span>
+                    </div>
 
-            <div class="brief-panel-main ${active.mainClass || ''}">${active.main}</div>
-            <div class="brief-panel-sub ${active.subClass || ''}">${active.sub}</div>
-            <div class="brief-panel-detail ${active.detailClass || ''}">${active.detail}</div>
+                    <div class="brief-list-content">
+                        <div class="brief-list-main ${tab.mainClass || ''}">${tab.main}</div>
+                        <div class="brief-list-sub ${tab.subClass || ''}">${tab.sub}</div>
+                        <div class="brief-list-detail ${tab.detailClass || ''}">${tab.detail}</div>
+                    </div>
+                </div>
+            `).join('')}
         </div>
     `;
-
-    body.querySelectorAll('.brief-tab').forEach(btn => {
-        btn.addEventListener('click', () => {
-            this.dashboardTabIndex = Number(btn.dataset.tab);
-            this.renderDashboardStrip();
-        });
-    });
 }
 
 cycleDashboardStrip() {
     const tabSet = this.getDashboardTabSet();
     if (!tabSet) return;
 
-    this.dashboardTabIndex = (this.dashboardTabIndex + 1) % tabSet.tabs.length;
-    this.renderDashboardStrip();
+    const body = this.domCache.dashboardStripBody;
+    const list = body?.querySelector('.brief-list');
+
+    if (list) {
+        list.classList.add('brief-shift-out');
+    }
+
+    setTimeout(() => {
+        this.dashboardTabIndex = (this.dashboardTabIndex + 1) % tabSet.tabs.length;
+        this.renderDashboardStrip();
+    }, 180);
 }
     
 
