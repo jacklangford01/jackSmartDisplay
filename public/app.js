@@ -26,7 +26,7 @@ function getMasterTimeOfDay() {
 
     //manual for testing
 
-    return 'night';
+    return 'morning';
 
 
 }
@@ -40,8 +40,8 @@ const DASHBOARD_CONFIG = {
             label: 'Commute',
             icon: 'fa-road',
             main: '22 min',
-            sub: 'Home to campus via Loop 202',
-            detail: 'Moderate traffic with one slowdown'
+            sub: 'failed to load commuting data',
+            detail: 'mock data'
         },
         {
             label: 'Next Up',
@@ -99,30 +99,22 @@ const DASHBOARD_CONFIG = {
             label: 'Markets',
             icon: 'fa-chart-line',
             main: 'US markets closed mixed',
-            sub: 'Tech outperformed',
-            detail: 'Watch futures in the morning'
+            sub: 'error loading market data',
+            detail: 'mock data'
         },
         {
             label: 'Crypto',
             icon: 'fa-bitcoin-sign',
             main: 'BTC $68.4K',
-            sub: 'ETH $3.4K • SOL $154',
-            detail: 'Crypto active overnight'
+            sub: 'error loading crypto data',
+            detail: 'mock data'
         },
         {
-            label: 'Alerts',
-            icon: 'fa-triangle-exclamation',
-            main: 'Heat Alert',
-            sub: 'Hot afternoon tomorrow',
-            detail: 'Hydrate before heading out',
-            level: 'warning'
-        },
-        {
-            label: 'Global',
-            icon: 'fa-earth-americas',
-            main: 'Asia opens tonight',
-            sub: 'Europe data due in morning',
-            detail: 'Overseas markets may set early tone'
+            label: 'News',
+            icon: 'fa-newspaper',
+            main: 'Top headline',
+            sub: 'Loading live headlines',
+            detail: 'Waiting for API'
         }
     ]
 };
@@ -152,11 +144,20 @@ class SmartDisplay {
         this.summaryShown = false;
         this.lastSummaryDate = new Date().toDateString();
 
-        /// Tabs logic
+        /// Tabs logic///////////////////////////
         this.liveWeatherTab = null;
 
         this.liveNextUpTab = null;
         this.liveMorningScheduleTab = null;
+
+        this.liveCommuteTab = null;
+
+        this.liveMarketsTab = null;
+        this.liveCryptoTab = null;
+
+        this.liveNewsTab = null;
+        /////////////////////////////////////////
+
         // this.liveEveningScheduleTab = null;
         this.liveTomorrowTab = null;
 
@@ -227,6 +228,10 @@ class SmartDisplay {
         this.loadCalendarEvents();
         this.loadEveningScheduleEvents();
         this.loadWeather();
+        this.loadNews();
+        this.loadMarkets();
+        this.loadCrypto();
+        this.loadCommute();
         this.loadPhotos();
         this.updateBlueLightFilter();
         this.renderDashboardStrip();
@@ -288,6 +293,16 @@ class SmartDisplay {
 
         // dashboard strip
         setInterval(() => this.renderDashboardStrip(), intervals.time);
+
+        //commute data
+        setInterval(() => this.loadCommute(), 10 * 60 * 1000);
+
+        //markets and crypto data
+        setInterval(() => this.loadMarkets(), 60 * 60 * 1000);
+        setInterval(() => this.loadCrypto(), 15 * 60 * 1000);
+
+        // news data (making sure it does not go over 100 requests per day limit of newsapi)
+        setInterval(() => this.loadNews(), 12 * 60 * 60 * 1000);
         
         // Debounced resize handler
         let resizeTimeout;
@@ -314,8 +329,11 @@ getDashboardTabSet() {
 
         tabSet = window.TabHelpers.applyLiveWeatherTab(tabSet, this.liveWeatherTab);
         tabSet = window.TabHelpers.applyLiveCalendarTabs(tabSet, {
+            'Commute': this.liveCommuteTab,
             'Next Up': this.liveNextUpTab,
-            'Schedule': this.liveMorningScheduleTab
+            'Schedule': this.liveMorningScheduleTab,
+            'Markets': this.liveMarketsTab,
+            'News': this.liveNewsTab
         });
 
         return tabSet;
@@ -329,8 +347,11 @@ getDashboardTabSet() {
 
         tabSet = window.TabHelpers.applyLiveWeatherTab(tabSet, this.liveWeatherTab);
         tabSet = window.TabHelpers.applyLiveCalendarTabs(tabSet, {
-            'Next Up': this.liveNextUpTab,
-            'Schedule': this.liveMorningScheduleTab
+        'Commute': this.liveCommuteTab,
+        'Next Up': this.liveNextUpTab,
+        'Schedule': this.liveMorningScheduleTab,
+        'Markets': this.liveMarketsTab,
+        'News': this.liveNewsTab
         });
 
         return tabSet;
@@ -343,8 +364,11 @@ getDashboardTabSet() {
         };
 
         tabSet = window.TabHelpers.applyLiveCalendarTabs(tabSet, {
-            'Schedule': this.liveEveningScheduleTab,
-            'Tomorrow': this.liveTomorrowTab
+        'Tomorrow': this.liveTomorrowTab,
+        'Schedule': this.liveEveningScheduleTab,
+        'Markets': this.liveMarketsTab,
+        'Crypto': this.liveCryptoTab,
+        'News': this.liveNewsTab
         });
 
         return tabSet;
@@ -392,9 +416,9 @@ renderDashboardStrip() {
                 <span>${active.label}</span>
             </div>
 
-            <div class="brief-panel-main">${active.main}</div>
-            <div class="brief-panel-sub">${active.sub}</div>
-            <div class="brief-panel-detail">${active.detail}</div>
+            <div class="brief-panel-main ${active.mainClass || ''}">${active.main}</div>
+            <div class="brief-panel-sub ${active.subClass || ''}">${active.sub}</div>
+            <div class="brief-panel-detail ${active.detailClass || ''}">${active.detail}</div>
         </div>
     `;
 
@@ -731,6 +755,25 @@ cycleDashboardStrip() {
         });
     }
 
+    async loadNews() {
+        try {
+            const response = await fetch('/api/news');
+            const newsData = await response.json();
+
+            if (newsData.error) {
+                console.error('News API error:', newsData.error);
+                this.liveNewsTab = null;
+                return;
+            }
+
+            this.liveNewsTab = window.TabHelpers.buildNewsTab(newsData);
+            this.renderDashboardStrip();
+        } catch (error) {
+            console.error('Error loading news:', error);
+            this.liveNewsTab = null;
+        }
+    }
+
     async loadWeather() {
             try {
                 if (!this.settings.latitude || !this.settings.longitude) {
@@ -755,6 +798,63 @@ cycleDashboardStrip() {
                 this.renderDashboardStrip();
             } catch (error) {
                 console.error('Error loading weather:', error);
+            }
+        }
+
+        async loadMarkets() {
+            try {
+                const response = await fetch('/api/markets');
+                const marketData = await response.json();
+
+                if (marketData.error) {
+                    console.error('Markets API error:', marketData.error);
+                    this.liveMarketsTab = null;
+                    return;
+                }
+
+                this.liveMarketsTab = window.TabHelpers.buildMarketsTab(marketData);
+                this.renderDashboardStrip();
+            } catch (error) {
+                console.error('Error loading markets:', error);
+                this.liveMarketsTab = null;
+            }
+        }
+
+        async loadCrypto() {
+            try {
+                const response = await fetch('/api/crypto');
+                const cryptoData = await response.json();
+
+                if (cryptoData.error) {
+                    console.error('Crypto API error:', cryptoData.error);
+                    this.liveCryptoTab = null;
+                    return;
+                }
+
+                this.liveCryptoTab = window.TabHelpers.buildCryptoTab(cryptoData);
+                this.renderDashboardStrip();
+            } catch (error) {
+                console.error('Error loading crypto:', error);
+                this.liveCryptoTab = null;
+            }
+        }
+
+        async loadCommute() {
+            try {
+                const response = await fetch('/api/commute');
+                const commuteData = await response.json();
+
+                if (commuteData.error) {
+                    console.error('Commute API error:', commuteData.error);
+                    this.liveCommuteTab = null;
+                    return;
+                }
+
+                this.liveCommuteTab = window.TabHelpers.buildCommuteTab(commuteData);
+                this.renderDashboardStrip();
+            } catch (error) {
+                console.error('Error loading commute:', error);
+                this.liveCommuteTab = null;
             }
         }
 

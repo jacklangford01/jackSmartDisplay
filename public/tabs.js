@@ -387,3 +387,243 @@ window.TabHelpers = {
         };
     }
 };
+
+//////////////////////////////////////
+
+//Commute logic 
+window.TabHelpers = {
+    ...window.TabHelpers,
+
+    buildCommuteTab(commuteData) {
+        if (!commuteData || commuteData.error) {
+            return {
+                label: 'Commute',
+                icon: 'fa-road',
+                main: 'Commute unavailable',
+                sub: 'Check route settings',
+                detail: 'No live route data'
+            };
+        }
+
+        const minutes = Number(commuteData.durationMinutes);
+        let detail = 'Typical drive time';
+        let mainClass = 'brief-neutral';
+
+        if (minutes <= 15) {
+            detail = 'Quick drive right now';
+            mainClass = 'brief-positive';
+        } else if (minutes <= 30) {
+            detail = 'Normal traffic conditions';
+            mainClass = 'brief-neutral';
+        } else {
+            detail = 'Heavier commute than usual';
+            mainClass = 'brief-negative';
+        }
+
+        return {
+            label: 'Commute',
+            icon: 'fa-road',
+            main: `${minutes} min`,
+            sub: `${commuteData.distanceMiles} mi drive`,
+            detail,
+            mainClass
+        };
+    }
+};
+
+//////////////////////////////////////
+
+// Markets and Crypto Logic
+
+window.TabHelpers = {
+    ...window.TabHelpers,
+
+buildMarketsTab(marketData) {
+    if (!marketData || !marketData.length) {
+        return {
+            label: 'Markets',
+            icon: 'fa-chart-line',
+            main: 'Market data unavailable',
+            sub: 'Check API settings',
+            detail: 'No live stock data'
+        };
+    }
+
+    const cleaned = marketData.filter(item =>
+        item &&
+        item.symbol &&
+        item.changePercent
+    );
+
+    if (!cleaned.length) {
+        return {
+            label: 'Markets',
+            icon: 'fa-chart-line',
+            main: 'Market data unavailable',
+            sub: 'No usable symbols returned',
+            detail: 'API returned empty values'
+        };
+    }
+
+    const formatted = cleaned.map(item => {
+        const rawPercent = String(item.changePercent).replace('%', '');
+        const numericPercent = Number(rawPercent);
+        const roundedPercent = numericPercent.toFixed(1);
+        const signedPercent = numericPercent > 0
+            ? `+${roundedPercent}%`
+            : `${roundedPercent}%`;
+
+        return {
+            symbol: item.symbol,
+            percent: signedPercent,
+            numericPercent
+        };
+    });
+
+    const main = formatted
+        .slice(0, 3)
+        .map(item => `${item.symbol} ${item.percent}`)
+        .join(' • ');
+
+    const sub = `${formatted.length} market symbol${formatted.length === 1 ? '' : 's'} tracked`;
+
+    const avgMove = formatted.reduce((sum, item) => sum + item.numericPercent, 0) / formatted.length;
+
+    let detail = 'Mixed session across your watchlist';
+    let detailClass = 'brief-neutral';
+
+    if (avgMove > 0.15) {
+        detail = 'Watchlist is mostly positive';
+        detailClass = 'brief-positive';
+    } else if (avgMove < -0.15) {
+        detail = 'Watchlist is mostly negative';
+        detailClass = 'brief-negative';
+    }
+
+    return {
+        label: 'Markets',
+        icon: 'fa-chart-line',
+        main,
+        sub,
+        detail,
+        mainClass: avgMove > 0.15 ? 'brief-positive' : avgMove < -0.15 ? 'brief-negative' : 'brief-neutral',
+        detailClass
+    };
+},
+
+    buildCryptoTab(cryptoData) {
+        if (!cryptoData || !cryptoData.length) {
+            return {
+                label: 'Crypto',
+                icon: 'fa-bitcoin-sign',
+                main: 'Crypto unavailable',
+                sub: 'Check API settings',
+                detail: 'No live crypto data'
+            };
+        }
+
+        const nameMap = {
+            bitcoin: 'BTC',
+            ethereum: 'ETH',
+            solana: 'SOL'
+        };
+
+        const cleaned = cryptoData.filter(item => item && item.price != null);
+
+        if (!cleaned.length) {
+            return {
+                label: 'Crypto',
+                icon: 'fa-bitcoin-sign',
+                main: 'Crypto unavailable',
+                sub: 'No usable coin data',
+                detail: 'API returned empty values'
+            };
+        }
+
+        const top = cleaned[0];
+        const summary = cleaned
+            .slice(0, 3)
+            .map(item => {
+                const symbol = nameMap[item.id] || item.id.toUpperCase();
+                const price = `$${Number(item.price).toLocaleString(undefined, {
+                    maximumFractionDigits: 0
+                })}`;
+                return `${symbol} ${price}`;
+            })
+            .join(' • ');
+
+        const topSymbol = nameMap[top.id] || top.id.toUpperCase();
+        const topPrice = `$${Number(top.price).toLocaleString(undefined, {
+            maximumFractionDigits: 0
+        })}`;
+
+        const move = typeof top.change24h === 'number' ? top.change24h : 0;
+
+        return {
+            label: 'Crypto',
+            icon: 'fa-bitcoin-sign',
+            main: `${topSymbol} ${topPrice}`,
+            sub: summary,
+            detail: `${topSymbol} ${move >= 0 ? '+' : ''}${move.toFixed(1)}% over 24h`,
+            detailClass: move > 0 ? 'brief-positive' : move < 0 ? 'brief-negative' : 'brief-neutral'
+        };
+    }
+};
+
+////////////////////////////////
+/// News tab logic
+
+window.TabHelpers = {
+    ...window.TabHelpers,
+
+    buildNewsTab(newsData) {
+        if (!newsData || !newsData.length) {
+            return {
+                label: 'News',
+                icon: 'fa-newspaper',
+                main: 'News unavailable',
+                sub: 'Check API settings',
+                detail: 'No live headlines'
+            };
+        }
+
+        const cleaned = newsData.filter(item => item && item.title);
+
+        if (!cleaned.length) {
+            return {
+                label: 'News',
+                icon: 'fa-newspaper',
+                main: 'News unavailable',
+                sub: 'No usable headlines returned',
+                detail: 'Try again later'
+            };
+        }
+
+        const shorten = (text, max = 60) => {
+            if (!text) return '';
+            return text.length > max
+                ? text.slice(0, max).trim() + '...'
+                : text;
+        };
+
+        const headline1 = cleaned[0]
+            ? `${cleaned[0].category}: ${shorten(cleaned[0].title, 65)}`
+            : 'No headline available';
+
+        const headline2 = cleaned[1]
+            ? `${cleaned[1].category}: ${shorten(cleaned[1].title, 55)}`
+            : 'More headlines loading';
+
+        const headline3 = cleaned[2]
+            ? `${cleaned[2].category}: ${shorten(cleaned[2].title, 55)}`
+            : 'Top stories updated';
+
+        return {
+            label: 'News',
+            icon: 'fa-newspaper',
+            main: headline1,
+            sub: headline2,
+            detail: headline3
+        };
+    }
+};

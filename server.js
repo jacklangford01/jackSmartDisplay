@@ -14,6 +14,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+// Stock rate limiting workaround
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+let marketsCache = null;
+let marketsCacheTime = 0;
+const MARKETS_CACHE_MS = 6 * 60 * 60 * 1000; // 6 hours
+
 
 
 // Gemini AI setup
@@ -651,4 +658,242 @@ Keep the tone warm, friendly, and conversational while maintaining a clean, mode
 app.listen(PORT, () => {
   console.log(`Smart Display server running on port ${PORT}`);
   console.log(`Open http://localhost:${PORT} in your browser`);
+});
+
+
+//----------------------------------------------
+
+//my APIs
+
+////////////////////////////////////
+
+//commute API endpoint using OpenRouteService
+app.get('/api/commute', async (req, res) => {
+    try {
+        const apiKey = process.env.ORS_API_KEY;
+
+        if (!apiKey) {
+            return res.status(400).json({ error: 'Missing ORS_API_KEY' });
+        }
+
+        const [startLat, startLon] = process.env.COMMUTE_ORIGIN.split(',').map(Number);
+        const [endLat, endLon] = process.env.COMMUTE_DESTINATION.split(',').map(Number);
+
+        const response = await axios.post(
+            'https://api.openrouteservice.org/v2/directions/driving-car',
+            {
+                coordinates: [
+                    [startLon, startLat],
+                    [endLon, endLat]
+                ]
+            },
+            {
+                headers: {
+                    Authorization: apiKey,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        const route = response.data.routes[0];
+        const seconds = route.summary.duration;
+        const meters = route.summary.distance;
+
+        const minutes = Math.round(seconds / 60);
+        const miles = (meters / 1609.34).toFixed(1);
+
+        res.json({
+            durationMinutes: minutes,
+            distanceMiles: miles
+        });
+
+    } catch (error) {
+        console.error('Commute error:', error.response?.data || error.message);
+        res.status(500).json({ error: 'Failed to fetch commute' });
+    }
+});
+
+
+// stock market API endpoint using Alpha Vantage
+app.get('/api/markets', async (req, res) => {
+    try {
+        const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
+        const symbols = (process.env.MARKET_SYMBOLS || 'SPY,QQQ,NVDA')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+
+        if (!apiKey) {
+            return res.status(400).json({ error: 'Missing ALPHA_VANTAGE_API_KEY' });
+        }
+
+        const now = Date.now();
+
+        // Return cached data if still fresh
+        if (marketsCache && (now - marketsCacheTime < MARKETS_CACHE_MS)) {
+            return res.json(marketsCache);
+        }
+
+        const results = [];
+
+        for (const symbol of symbols) {
+            const response = await axios.get('https://www.alphavantage.co/query', {
+                params: {
+                    function: 'GLOBAL_QUOTE',
+                    symbol,
+                    apikey: apiKey
+                }
+            });
+
+            const data = response.data;
+            const quote = data['Global Quote'];
+
+            if (quote && quote['01. symbol']) {
+                results.push({
+                    symbol: quote['01. symbol'],
+                    price: Number(quote['05. price']),
+                    change: Number(quote['09. change']),
+                    changePercent: quote['10. change percent']
+                });
+            } else {
+                console.log(`No usable quote returned for ${symbol}:`, data);
+            }
+
+            // Wait before next symbol to reduce rate-limit issues
+            await sleep(15000);
+        }
+
+        // If we got at least one result, cache it
+        if (results.length > 0) {
+            marketsCache = results;
+            marketsCacheTime = now;
+            return res.json(results);
+        }
+
+        // If no fresh results but old cache exists, return old cache
+        if (marketsCache) {
+            return res.json(marketsCache);
+        }
+
+        return res.status(500).json({ error: 'Failed to fetch market data' });
+    } catch (error) {
+        console.error('Markets error:', error.response?.data || error.message);
+
+        // Fallback to cache on error
+        if (marketsCache) {
+            return res.json(marketsCache);
+        }
+
+        res.status(500).json({ error: 'Failed to fetch market data' });
+    }
+});
+
+// cryptocurrency API endpoint using CoinGecko
+app.get('/api/crypto', async (req, res) => {
+    try {
+        const ids = (process.env.CRYPTO_IDS || 'bitcoin,ethereum,solana')
+            .split(',')
+            .map(id => id.trim())
+            .filter(Boolean);
+
+        const response = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
+            params: {
+                ids: ids.join(','),
+                vs_currencies: 'usd',
+                include_24hr_change: 'true'
+            }
+        });
+
+        const data = ids.map(id => ({
+            id,
+            price: response.data[id]?.usd ?? null,
+            change24h: response.data[id]?.usd_24h_change ?? null
+        }));
+
+        res.json(data);
+    } catch (error) {
+        console.error('Crypto error:', error.response?.data || error.message);
+        res.status(500).json({ error: 'Failed to fetch crypto data' });
+    }
+});
+
+// news API endpoint using GNews
+let newsCache = null;
+let newsCacheTime = 0;
+const NEWS_CACHE_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+app.get('/api/news', async (req, res) => {
+    try {
+        const apiKey = process.env.GNEWS_API_KEY;
+        const lang = process.env.NEWS_LANG || 'en';
+        const country = process.env.NEWS_COUNTRY || 'us';
+        const maxHeadlines = Number(process.env.NEWS_MAX_HEADLINES || 3);
+
+        if (!apiKey) {
+            return res.status(400).json({ error: 'Missing GNEWS_API_KEY' });
+        }
+
+        const now = Date.now();
+
+        // Return cached data if still fresh
+        if (newsCache && (now - newsCacheTime < NEWS_CACHE_MS)) {
+            return res.json(newsCache);
+        }
+
+        const categories = [
+            { key: 'business', label: 'Finance' }
+            // { key: 'technology', label: 'Technology' },
+            // { key: 'world', label: 'Global' }
+        ];
+
+        const responses = await Promise.allSettled(
+            categories.map(category =>
+                axios.get('https://gnews.io/api/v4/top-headlines', {
+                    params: {
+                        category: category.key,
+                        lang,
+                        country,
+                        max: maxHeadlines,
+                        apikey: apiKey
+                    }
+                })
+            )
+        );
+
+        const newsItems = responses.flatMap((result, index) => {
+            if (result.status !== 'fulfilled') {
+                console.log(`News request failed for ${categories[index].key}:`, result.reason?.message || result.reason);
+                return [];
+            }
+
+            const articles = result.value.data?.articles || [];
+
+            return articles.map(article => ({
+                category: categories[index].label,
+                title: article.title || 'No headline available',
+                source: article.source?.name || 'Unknown source',
+                url: article.url || ''
+            }));
+        });
+
+        if (newsItems.length > 0) {
+            newsCache = newsItems;
+            newsCacheTime = now;
+            return res.json(newsItems);
+        }
+
+        if (newsCache) {
+            return res.json(newsCache);
+        }
+
+        return res.status(500).json({ error: 'Failed to fetch news data' });
+    } catch (error) {
+        console.error('News error:', error.response?.data || error.message);
+
+        if (newsCache) {
+            return res.json(newsCache);
+        }
+
+        res.status(500).json({ error: 'Failed to fetch news data' });
+    }
 });

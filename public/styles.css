@@ -1670,3 +1670,33 @@ body {
     gap: 12px;
     z-index: 110;
 }
+
+.brief-panel-main,
+.brief-panel-sub,
+.brief-panel-detail {
+    transition: color 0.25s ease;
+}
+
+.brief-positive {
+    color: #7ee787;
+    font-weight: 700;
+}
+
+.brief-negative {
+    color: #ff7b72;
+    font-weight: 700;
+}
+
+.brief-neutral {
+    color: #f2cc60;
+    font-weight: 700;
+}
+
+.brief-panel-main {
+    line-height: 1.25;
+}
+
+.brief-panel-sub,
+.brief-panel-detail {
+    line-height: 1.35;
+}
