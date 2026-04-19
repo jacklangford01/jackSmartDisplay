@@ -232,64 +232,87 @@ window.TabHelpers = {
             return {
                 label: 'Schedule',
                 icon: 'fa-calendar-day',
-                main: 'Tomorrow is open',
-                sub: 'No early events scheduled',
-                detail: 'Good window for focused work'
+                main: 'Next 3 days are open',
+                sub: 'No events on the calendar',
+                detail: 'Light schedule ahead'
             };
         }
 
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowString = tomorrow.toDateString();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-        const tomorrowEvents = events.filter(event => {
-            const start = new Date(event.start.dateTime || event.start.date);
-            return start.toDateString() === tomorrowString;
+        const nextThreeDays = [];
+
+        for (let i = 1; i <= 3; i++) {
+            const day = new Date(today);
+            day.setDate(day.getDate() + i);
+            nextThreeDays.push(day);
+        }
+
+        const dayBuckets = nextThreeDays.map(day => {
+            const dayString = day.toDateString();
+
+            const dayEvents = events.filter(event => {
+                const start = new Date(event.start.dateTime || event.start.date);
+                return start.toDateString() === dayString;
+            });
+
+            return {
+                date: day,
+                events: dayEvents
+            };
         });
 
-        if (!tomorrowEvents.length) {
+        const totalEvents = dayBuckets.reduce((sum, day) => sum + day.events.length, 0);
+
+        if (totalEvents === 0) {
             return {
                 label: 'Schedule',
                 icon: 'fa-calendar-day',
-                main: 'Tomorrow is open',
+                main: 'Next 3 days are open',
                 sub: 'No events on the calendar',
-                detail: 'Good window for focused work'
+                detail: 'Light schedule ahead'
             };
         }
 
-        const timedTomorrow = tomorrowEvents
-            .filter(event => event.start?.dateTime)
-            .map(event => ({
-                title: event.summary || 'Event',
-                start: new Date(event.start.dateTime),
-                end: new Date(event.end.dateTime)
-            }))
-            .sort((a, b) => a.start - b.start);
+        const daySummary = dayBuckets.map(bucket => {
+            const dayName = bucket.date.toLocaleDateString('en-US', { weekday: 'short' });
+            return `${dayName} ${bucket.events.length}`;
+        }).join(' • ');
 
-        let main = `${tomorrowEvents.length} event${tomorrowEvents.length === 1 ? '' : 's'} tomorrow`;
-        let sub = 'Tomorrow is taking shape';
-        let detail = tomorrowEvents
-            .slice(0, 2)
-            .map(event => event.summary || 'Event')
-            .join(' • ');
+        const firstBusyDay = dayBuckets.find(bucket => bucket.events.length > 0);
 
-        if (timedTomorrow.length) {
-            const first = timedTomorrow[0];
-            const firstText = first.start.toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit'
-            });
+        let detail = 'Balanced schedule ahead';
 
-            main = `Tomorrow starts at ${firstText}`;
-            sub = `${tomorrowEvents.length} event${tomorrowEvents.length === 1 ? '' : 's'} on deck`;
-            detail = first.title;
+        if (firstBusyDay) {
+            const timedEvents = firstBusyDay.events
+                .filter(event => event.start?.dateTime)
+                .map(event => ({
+                    title: event.summary || 'Event',
+                    start: new Date(event.start.dateTime)
+                }))
+                .sort((a, b) => a.start - b.start);
+
+            const dayName = firstBusyDay.date.toLocaleDateString('en-US', { weekday: 'long' });
+
+            if (timedEvents.length) {
+                const firstEvent = timedEvents[0];
+                const firstTime = firstEvent.start.toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit'
+                });
+
+                detail = `${dayName} starts with ${firstEvent.title} at ${firstTime}`;
+            } else {
+                detail = `${dayName} includes all-day events`;
+            }
         }
 
         return {
             label: 'Schedule',
             icon: 'fa-calendar-day',
-            main,
-            sub,
+            main: `${totalEvents} event${totalEvents === 1 ? '' : 's'} in next 3 days`,
+            sub: daySummary,
             detail
         };
     },

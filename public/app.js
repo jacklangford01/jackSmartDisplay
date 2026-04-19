@@ -26,7 +26,7 @@ function getMasterTimeOfDay() {
 
     // manual for testing
 
-    // return 'morning';
+    // return 'lateNight';
 
 
 }
