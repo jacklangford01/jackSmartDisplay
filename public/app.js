@@ -39,44 +39,44 @@ const DASHBOARD_CONFIG = {
         {
             label: 'Commute',
             icon: 'fa-road',
-            main: '22 min',
-            sub: 'failed to load commuting data',
-            detail: 'mock data'
+            main: 'Error',
+            sub: 'Failed to load commuting data',
+            detail: 'Check maps or traffic API connection'
         },
         {
             label: 'Next Up',
             icon: 'fa-hourglass-half',
-            main: 'Class in 42 min',
-            sub: 'failed to load schedule data',
-            detail: 'this is mock data'
+            main: 'Error',
+            sub: 'Failed to load schedule data',
+            detail: 'No calendar response received'
         },
         {
             label: 'Weather',
             icon: 'fa-sun',
-            main: '96° / 71°',
-            sub: 'failed to load weather data',
-            detail: 'this is mock data'
+            main: 'Error',
+            sub: 'Failed to load weather data',
+            detail: 'Weather service unavailable'
         },
         {
             label: 'Schedule',
             icon: 'fa-calendar-day',
-            main: '3 events today',
-            sub: 'failed to load calendar data',
-            detail: 'this is mock data'
+            main: 'Error',
+            sub: 'Failed to load calendar data',
+            detail: 'Calendar sync issue detected'
         },
         {
             label: 'Markets',
             icon: 'fa-chart-line',
-            main: 'QQQ led yesterday',
-            sub: 'SPY +0.4% • QQQ +0.7%',
-            detail: 'Large-cap tech stayed firm'
+            main: 'Error',
+            sub: 'Failed to load market data',
+            detail: 'Stock API returned no data'
         },
         {
             label: 'News',
             icon: 'fa-newspaper',
-            main: 'Top headline',
-            sub: 'Markets watching rates and earnings',
-            detail: 'Investors remain focused on AI demand'
+            main: 'Error',
+            sub: 'Failed to load news data',
+            detail: 'Headline feed unavailable'
         }
     ],
 
@@ -84,37 +84,37 @@ const DASHBOARD_CONFIG = {
         {
             label: 'Tomorrow',
             icon: 'fa-calendar-check',
-            main: '2 key events tomorrow',
-            sub: 'not loaded schedule data',
-            detail: 'mock data'
+            main: 'Error',
+            sub: 'Failed to load tomorrow schedule',
+            detail: 'No upcoming events found'
         },
         {
             label: 'Schedule',
             icon: 'fa-calendar-day',
-            main: 'Tomorrow starts at 10:00',
-            sub: 'failed to load calendar data',
-            detail: 'this is mock data'
+            main: 'Error',
+            sub: 'Failed to load calendar data',
+            detail: 'Calendar sync issue detected'
         },
         {
             label: 'Markets',
             icon: 'fa-chart-line',
-            main: 'US markets closed mixed',
-            sub: 'error loading market data',
-            detail: 'mock data'
+            main: 'Error',
+            sub: 'Failed to load market data',
+            detail: 'Stock API returned no data'
         },
         {
             label: 'Crypto',
             icon: 'fa-bitcoin-sign',
-            main: 'BTC $68.4K',
-            sub: 'error loading crypto data',
-            detail: 'mock data'
+            main: 'Error',
+            sub: 'Failed to load crypto data',
+            detail: 'Crypto feed unavailable'
         },
         {
             label: 'News',
             icon: 'fa-newspaper',
-            main: 'Top headline',
-            sub: 'Loading live headlines',
-            detail: 'Waiting for API'
+            main: 'Error',
+            sub: 'Failed to load news data',
+            detail: 'Headline feed unavailable'
         }
     ]
 };
@@ -228,6 +228,7 @@ class SmartDisplay {
         this.loadCalendarEvents();
         this.loadEveningScheduleEvents();
         this.loadWeather();
+        this.loadAirQuality();
         this.loadNews();
         this.loadMarkets();
         this.loadCrypto();
@@ -303,6 +304,9 @@ class SmartDisplay {
 
         // news data (making sure it does not go over 100 requests per day limit of newsapi)
         setInterval(() => this.loadNews(), 12 * 60 * 60 * 1000);
+
+        // Air quality data
+        setInterval(() => this.loadAirQuality(), 30 * 60 * 1000);
         
         // Debounced resize handler
         let resizeTimeout;
@@ -816,6 +820,8 @@ cycleDashboardStrip() {
 
                 this.updateWeatherDisplay(weatherData);
                 this.renderDashboardStrip();
+                this.updateUVDisplay(weatherData);
+                this.updateWeatherTemperatureColor(weatherData);
             } catch (error) {
                 console.error('Error loading weather:', error);
             }
@@ -1031,6 +1037,79 @@ getWeatherDescription(code) {
             const windArrow = this.getWindArrow(weatherData.current.wind_direction_10m);
             conditionElement.innerHTML += ` • ${windArrow} ${windSpeed} mph ${windDirection}`;
         }
+    }
+
+    updateWeatherTemperatureColor(weatherData) {
+        const weatherBox = document.getElementById('weatherInner');
+        if (!weatherBox) return;
+
+        const high =
+            weatherData.daily?.temperature_2m_max?.[0] ??
+            weatherData.daily?.apparent_temperature_max?.[0] ??
+            75;
+
+        let level = 'temp-mild';
+
+        if (high >= 105) {
+            level = 'temp-extreme';
+        } else if (high >= 95) {
+            level = 'temp-hot';
+        } else if (high >= 85) {
+            level = 'temp-warm';
+        } else if (high >= 70) {
+            level = 'temp-mild';
+        } else if (high >= 55) {
+            level = 'temp-cool';
+        } else {
+            level = 'temp-cold';
+        }
+
+        weatherBox.className = `weather-inner ${level}`;
+    }
+
+    updateUVDisplay(weatherData) {
+        const box = document.getElementById('uvBox');
+        const icon = document.getElementById('uvIcon');
+        const status = document.getElementById('uvStatus');
+        const main = document.getElementById('uvMain');
+        const detail = document.getElementById('uvDetail');
+
+        if (!box || !icon || !status || !main || !detail) return;
+
+        const uv = weatherData.current?.uv_index ?? 0;
+
+        let level = 'low';
+        let label = 'Low';
+        let advice = 'Minimal protection needed';
+        let iconClass = 'fa-sun';
+
+        if (uv >= 11) {
+            level = 'extreme';
+            label = 'Extreme';
+            advice = 'Avoid sun exposure';
+            iconClass = 'fa-triangle-exclamation';
+        } else if (uv >= 8) {
+            level = 'very-high';
+            label = 'Very High';
+            advice = 'Use SPF + seek shade';
+            iconClass = 'fa-fire';
+        } else if (uv >= 6) {
+            level = 'high';
+            label = 'High';
+            advice = 'Wear sunscreen';
+            iconClass = 'fa-sun';
+        } else if (uv >= 3) {
+            level = 'moderate';
+            label = 'Moderate';
+            advice = 'Protection recommended';
+            iconClass = 'fa-cloud-sun';
+        }
+
+        box.className = `uv-inner ${level}`;
+        icon.className = `fas ${iconClass}`;
+        status.textContent = label;
+        main.textContent = `UV ${uv}`;
+        detail.textContent = advice;
     }
 
     getWindDirection(degrees) {
@@ -1273,118 +1352,110 @@ getWeatherDescription(code) {
     } else {
         timeOfDay = 'night';
     }
+}
 
-    const localPhotos = {
+getPhotoSetForTimeOfDay() {
+    const timeOfDay = getMasterTimeOfDay();
+
+    const photosByTime = {
         earlyMorning: [
-            { baseUrl: 'images/earlyMorning/m1.jpg' },
-            { baseUrl: 'images/earlyMorning/m2.jpg' },
-            { baseUrl: 'images/earlyMorning/m3.jpg' }
+            'images/earlyMorning/m1.jpg',
+            'images/earlyMorning/m2.jpg',
+            'images/earlyMorning/m3.jpg'
         ],
         morning: [
-            { baseUrl: 'images/morning/m1.jpg' },
-            { baseUrl: 'images/morning/m2.jpg' },
-            { baseUrl: 'images/morning/m3.jpg' },
-            { baseUrl: 'images/morning/m4.jpg' },
-            { baseUrl: 'images/morning/m5.jpg' },
-            { baseUrl: 'images/morning/m6.jpg' },
-            { baseUrl: 'images/morning/m7.jpg' }
+            'images/morning/m1.jpg',
+            'images/morning/m2.jpg',
+            'images/morning/m3.jpg',
+            'images/morning/m4.jpg',
+            'images/morning/m5.jpg',
+            'images/morning/m6.jpg',
+            'images/morning/m7.jpg'
         ],
         afternoon: [
-            { baseUrl: 'images/afternoon/a1.jpg' },
-            { baseUrl: 'images/afternoon/a2.jpg' },
-            { baseUrl: 'images/afternoon/a3.jpg' },
-            { baseUrl: 'images/afternoon/a4.jpg' },
-            { baseUrl: 'images/afternoon/a5.jpg' },
-            { baseUrl: 'images/afternoon/a6.jpg' },
-            { baseUrl: 'images/afternoon/a7.jpg' },
-            { baseUrl: 'images/afternoon/a8.jpg' },
-            { baseUrl: 'images/afternoon/a9.jpg' },
-            { baseUrl: 'images/afternoon/a10.jpg' },
-            { baseUrl: 'images/afternoon/a11.jpg' },
-            { baseUrl: 'images/afternoon/a12.jpg' },
-            { baseUrl: 'images/afternoon/a13.jpg' },
-            { baseUrl: 'images/afternoon/a14.jpg' },
-            { baseUrl: 'images/afternoon/a15.jpg' },
-            { baseUrl: 'images/afternoon/a16.jpg' },
-            { baseUrl: 'images/afternoon/a17.jpg' },
-            { baseUrl: 'images/afternoon/a18.jpg' },
-            { baseUrl: 'images/afternoon/a19.jpg' },
-            { baseUrl: 'images/afternoon/a20.jpg' }
+            'images/afternoon/a1.jpg',
+            'images/afternoon/a2.jpg',
+            'images/afternoon/a3.jpg',
+            'images/afternoon/a4.jpg',
+            'images/afternoon/a5.jpg',
+            'images/afternoon/a6.jpg',
+            'images/afternoon/a7.jpg',
+            'images/afternoon/a8.jpg',
+            'images/afternoon/a9.jpg',
+            'images/afternoon/a10.jpg',
+            'images/afternoon/a11.jpg',
+            'images/afternoon/a12.jpg',
+            'images/afternoon/a13.jpg',
+            'images/afternoon/a14.jpg',
+            'images/afternoon/a15.jpg',
+            'images/afternoon/a16.jpg',
+            'images/afternoon/a17.jpg',
+            'images/afternoon/a18.jpg',
+            'images/afternoon/a19.jpg',
+            'images/afternoon/a20.jpg'
         ],
         evening: [
-            { baseUrl: 'images/evening/e1.jpg' },
-            { baseUrl: 'images/evening/e2.jpg' },
-            { baseUrl: 'images/evening/e3.jpg' },
-            { baseUrl: 'images/evening/e4.jpg' },
-            { baseUrl: 'images/evening/e5.jpg' },
-            { baseUrl: 'images/evening/e6.jpg' },
-            { baseUrl: 'images/evening/e7.jpg' },
-            { baseUrl: 'images/evening/e8.jpg' }
-
+            'images/evening/e1.jpg',
+            'images/evening/e2.jpg',
+            'images/evening/e3.jpg',
+            'images/evening/e4.jpg',
+            'images/evening/e5.jpg',
+            'images/evening/e6.jpg',
+            'images/evening/e7.jpg',
+            'images/evening/e8.jpg'
         ],
         night: [
-            { baseUrl: 'images/night/n1.jpg' },
-            { baseUrl: 'images/night/n2.jpg' },
-            { baseUrl: 'images/night/n3.jpg' },
-            { baseUrl: 'images/night/n4.jpg' },
-            { baseUrl: 'images/night/n5.jpg' },
-            // { baseUrl: 'images/night/n6.jpg' },
-            { baseUrl: 'images/night/n7.jpg' },
-            { baseUrl: 'images/night/n8.jpg' }
+            'images/night/n1.jpg',
+            'images/night/n2.jpg',
+            'images/night/n3.jpg',
+            'images/night/n4.jpg',
+            'images/night/n5.jpg',
+            'images/night/n7.jpg',
+            'images/night/n8.jpg'
+        ],
+        lateNight: [
+            'images/night/n1.jpg',
+            'images/night/n2.jpg',
+            'images/night/n3.jpg',
+            'images/night/n4.jpg',
+            'images/night/n5.jpg',
+            'images/night/n7.jpg',
+            'images/night/n8.jpg'
         ]
     };
 
-    this.photos = localPhotos[timeOfDay] || [];
-    this.currentPhotoIndex = 0;
-    this.startPhotoSlideshow();
+    return photosByTime[timeOfDay] || photosByTime.afternoon;
 }
 
-    startPhotoSlideshow() {
-        if (this.photos.length === 0) return;
+loadPhotos() {
+    this.photos = this.getPhotoSetForTimeOfDay();
+    this.showRandomPhoto();
 
-        const slideshowContainer = this.domCache.photoSlideshow;
-        slideshowContainer.innerHTML = '';
-
-        // Create photo slides with optimized loading
-        this.photos.forEach((photo, index) => {
-            const slide = document.createElement('div');
-            slide.className = `photo-slide ${index === 0 ? 'active' : ''}`;
-            
-            // Use lower resolution for better performance
-            const imageUrl = photo.baseUrl;
-            slide.style.backgroundImage = `url(${imageUrl})`;
-            
-            // Add photographer attribution
-            // if (photo.photographer && photo.photographerUrl) {
-            //     const attribution = document.createElement('div');
-            //     attribution.className = 'photo-attribution';
-            //     attribution.innerHTML = `
-            //         <a href="${photo.photographerUrl}" target="_blank" rel="noopener noreferrer">
-            //             Photo by ${photo.photographer}
-            //         </a>
-            //     `;
-            //     slide.appendChild(attribution);
-            // }
-            
-            slideshowContainer.appendChild(slide);
-        });
-
-        // Start slideshow with longer interval for better performance
-        const slideInterval = this.isLowPowerMode ? 120000 : 60000; // 2 minutes vs 1 minute
-        this.photoInterval = setInterval(() => {
-            this.nextPhoto();
-        }, slideInterval);
+    if (this.photoInterval) {
+        clearInterval(this.photoInterval);
     }
 
-    nextPhoto() {
-        if (this.photos.length === 0) return;
+    const photoChangeInterval = this.isLowPowerMode ? 120000 : 60000;
 
-        const slides = document.querySelectorAll('.photo-slide');
-        slides[this.currentPhotoIndex].classList.remove('active');
-        
-        this.currentPhotoIndex = (this.currentPhotoIndex + 1) % this.photos.length;
-        slides[this.currentPhotoIndex].classList.add('active');
-    }
+    this.photoInterval = setInterval(() => {
+        this.photos = this.getPhotoSetForTimeOfDay();
+        this.showRandomPhoto();
+    }, photoChangeInterval);
+}
+
+showRandomPhoto() {
+    if (!this.photos || this.photos.length === 0) return;
+
+    const slideshowContainer = this.domCache.photoSlideshow;
+    if (!slideshowContainer) return;
+
+    const randomIndex = Math.floor(Math.random() * this.photos.length);
+    const imageUrl = this.photos[randomIndex];
+
+    slideshowContainer.innerHTML = `
+        <div class="photo-slide active" style="background-image: url('${imageUrl}')"></div>
+    `;
+}
 
     openSettings() {
         this.domCache.settingsModal.classList.add('active');
@@ -1443,6 +1514,73 @@ getWeatherDescription(code) {
         console.log('Settings saved, summary will show at:', this.settings.summaryTime);
 
         this.closeSettings();
+    }
+
+    // Air quality logic
+    async loadAirQuality() {
+        try {
+            if (!this.settings.latitude || !this.settings.longitude) {
+                console.log('Air quality coordinates not configured');
+                return;
+            }
+
+            const response = await fetch(`/api/air-quality?lat=${this.settings.latitude}&lon=${this.settings.longitude}`);
+            const airData = await response.json();
+
+            if (airData.error || !airData.current) {
+                console.error('Air quality API error:', airData.error);
+                return;
+            }
+
+            this.updateAirQualityDisplay(airData);
+        } catch (error) {
+            console.error('Error loading air quality:', error);
+        }
+    }
+
+    updateAirQualityDisplay(airData) {
+        const box = document.getElementById('airQualityBox');
+        const icon = document.getElementById('airQualityIcon');
+        const status = document.getElementById('airQualityStatus');
+        const main = document.getElementById('airQualityMain');
+        const detail = document.getElementById('airQualityDetail');
+
+        if (!box || !icon || !status || !main || !detail) return;
+
+        const aqi = Math.round(airData.current.us_aqi);
+        const pm25 = airData.current.pm2_5;
+
+        let level = 'good';
+        let label = 'Good';
+        let iconClass = 'fa-face-smile';
+
+        if (aqi > 300) {
+            level = 'hazardous';
+            label = 'Hazardous';
+            iconClass = 'fa-skull-crossbones';
+        } else if (aqi > 200) {
+            level = 'very-unhealthy';
+            label = 'Very Unhealthy';
+            iconClass = 'fa-triangle-exclamation';
+        } else if (aqi > 150) {
+            level = 'unhealthy';
+            label = 'Unhealthy';
+            iconClass = 'fa-circle-exclamation';
+        } else if (aqi > 100) {
+            level = 'sensitive';
+            label = 'Unhealthy for Sensitive Groups';
+            iconClass = 'fa-lungs';
+        } else if (aqi > 50) {
+            level = 'moderate';
+            label = 'Moderate';
+            iconClass = 'fa-face-meh';
+        }
+
+        box.className = `air-quality-inner ${level}`;
+        icon.className = `fas ${iconClass}`;
+        status.textContent = label;
+        main.textContent = `AQI ${aqi}`;
+        detail.textContent = `PM2.5 ${pm25?.toFixed(1) ?? '--'} µg/m³`;
     }
 
     async loadForecast() {

@@ -358,9 +358,6 @@ body {
 
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    justify-content: flex-start;
-    gap: 0;
 
     background: rgba(15, 20, 32, 0.38);
     backdrop-filter: blur(18px);
@@ -1921,10 +1918,16 @@ body {
 }
 
 @media (max-width: 900px) {
-    .corner-stack {
+    .right-corner-stack {
         width: 290px;
         top: 14px;
         right: 14px;
+    }
+
+    .left-corner-stack {
+        width: 290px;
+        top: 14px;
+        left: 14px;
     }
 
     .time {
@@ -1936,18 +1939,6 @@ body {
     }
 }
 
-/* Corner logic */
-.corner-stack {
-    position: absolute;
-    top: 18px;
-    right: 18px;
-    width: 340px;
-
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    z-index: 110;
-}
 
 .brief-panel-main,
 .brief-panel-sub,
@@ -1977,4 +1968,211 @@ body {
 .brief-panel-sub,
 .brief-panel-detail {
     line-height: 1.35;
+}
+
+
+.air-quality-inner {
+    width: 100%;
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-radius: 12px;
+
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-left: 4px solid #78d7a3;
+
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.air-quality-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.92);
+}
+
+.air-quality-main {
+    font-size: 22px;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.air-quality-detail {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.72);
+}
+
+.air-quality-inner.good {
+    border-left-color: #78d7a3;
+}
+
+.air-quality-inner.good i {
+    color: #78d7a3;
+}
+
+.air-quality-inner.moderate {
+    border-left-color: #f6c453;
+}
+
+.air-quality-inner.moderate i {
+    color: #f6c453;
+}
+
+.air-quality-inner.sensitive,
+.air-quality-inner.unhealthy {
+    border-left-color: #ff9f43;
+}
+
+.air-quality-inner.sensitive i,
+.air-quality-inner.unhealthy i {
+    color: #ff9f43;
+}
+
+.air-quality-inner.very-unhealthy,
+.air-quality-inner.hazardous {
+    border-left-color: #ff7a7a;
+}
+
+.air-quality-inner.very-unhealthy i,
+.air-quality-inner.hazardous i {
+    color: #ff7a7a;
+}
+
+.uv-inner {
+    width: 100%;
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-radius: 12px;
+
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-left: 4px solid #78d7a3;
+
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.uv-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.92);
+}
+
+.uv-main {
+    font-size: 22px;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.uv-detail {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.72);
+}
+
+/* Levels */
+.uv-inner.low {
+    border-left-color: #78d7a3;
+}
+.uv-inner.low i {
+    color: #78d7a3;
+}
+
+.uv-inner.moderate {
+    border-left-color: #f6c453;
+}
+.uv-inner.moderate i {
+    color: #f6c453;
+}
+
+.uv-inner.high,
+.uv-inner.very-high {
+    border-left-color: #ff9f43;
+}
+.uv-inner.high i,
+.uv-inner.very-high i {
+    color: #ff9f43;
+}
+
+.uv-inner.extreme {
+    border-left-color: #ff7a7a;
+}
+.uv-inner.extreme i {
+    color: #ff7a7a;
+}
+
+
+/* new corner stack logic */
+.right-corner-stack {
+    position: absolute;
+    top: 14px;
+    right: 24px;
+
+    width: 360px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    z-index: 20;
+}
+
+.left-corner-stack {
+    position: absolute;
+    top: 14px;
+    left: 24px;
+
+    width: 360px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    z-index: 20;
+}
+
+/* weather color */
+.weather-inner {
+    position: relative;
+    border-left: 4px solid #78d7a3;
+    border-right: none;
+}
+
+/* Cold */
+.weather-inner.temp-cold {
+    border-right-color: #67b7ff;
+}
+
+/* Cool */
+.weather-inner.temp-cool {
+    border-right-color: #8ad8ff;
+}
+
+/* Mild */
+.weather-inner.temp-mild {
+    border-right-color: #78d7a3;
+}
+
+/* Warm */
+.weather-inner.temp-warm {
+    border-right-color: #f6c453;
+}
+
+/* Hot */
+.weather-inner.temp-hot {
+    border-right-color: #ff9f43;
+}
+
+/* Extreme */
+.weather-inner.temp-extreme {
+    border-right-color: #ff6b6b;
 }

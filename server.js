@@ -896,4 +896,23 @@ app.get('/api/news', async (req, res) => {
 
         res.status(500).json({ error: 'Failed to fetch news data' });
     }
+
+});
+
+
+/////////// Air Quality API 
+app.get('/api/air-quality', async (req, res) => {
+  try {
+    const { lat, lon } = req.query;
+
+    const response = await fetch(
+      `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5,pm10,ozone,nitrogen_dioxide&timezone=auto`
+    );
+
+    const airData = await response.json();
+    res.json(airData);
+  } catch (error) {
+    console.error('Error fetching air quality:', error);
+    res.status(500).json({ error: 'Failed to fetch air quality data' });
+  }
 });

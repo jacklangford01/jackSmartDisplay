@@ -25,7 +25,7 @@
                             </div>
                         </div>
                         
-                            <div class="corner-stack">
+                            <div class="right-corner-stack">
 
                                 <div class="calendar-card" id="calendarCard">
                                     <div class="calendar-header">
@@ -36,6 +36,10 @@
                                         <div class="loading">Loading events...</div>
                                     </div>
                                 </div>
+                            
+                            </div>  
+
+                            <div class="left-corner-stack">
 
                                     <div class="weather-display" id="weatherDisplay">
 
@@ -50,6 +54,25 @@
                                                 <div class="condition">Sunny</div>
                                                 <div class="weather-trend" id="weatherTrend"></div>
                                             </div>
+
+                                            <div class="air-quality-inner" id="airQualityBox">
+                                                <div class="air-quality-top">
+                                                    <i class="fas fa-wind" id="airQualityIcon"></i>
+                                                    <span id="airQualityStatus">Loading air quality...</span>
+                                                </div>
+                                                <div class="air-quality-main" id="airQualityMain">AQI --</div>
+                                                <div class="air-quality-detail" id="airQualityDetail"></div>
+                                            </div>
+
+                                            <div class="uv-inner" id="uvBox">
+                                                <div class="uv-top">
+                                                    <i class="fas fa-sun" id="uvIcon"></i>
+                                                    <span id="uvStatus">Loading UV...</span>
+                                                </div>
+                                                <div class="uv-main" id="uvMain">UV --</div>
+                                                <div class="uv-detail" id="uvDetail"></div>
+                                            </div>
+
                                         </div>
 
                                     </div>
