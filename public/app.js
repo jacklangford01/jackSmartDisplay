@@ -906,34 +906,43 @@ cycleDashboardStrip() {
             }
         }
 
+        cleanEmailSender(from) {
+            if (!from) return 'Unknown';
+
+            const match = from.match(/^"?([^"<]+)"?\s*</);
+
+            if (match && match[1]) {
+                return match[1].trim();
+            }
+
+            return from.split('<')[0].trim() || from;
+        }
+
         updateEmailDisplay(emails) {
             const emailCard = document.getElementById('emailCard');
             const emailContent = document.getElementById('emailContent');
 
-            if (!emailCard || !emailContent) return;
-
-            if (!emails || emails.length === 0) {
-                emailCard.style.display = 'none';
+            if (!emailCard || !emailContent) {
+                console.log('Email card or content missing');
                 return;
             }
 
-            const today = new Date().toDateString();
+            console.log('emails received by UI:', emails);
 
-            const todaysEmails = emails
-                .filter(email => {
-                    const emailDate = new Date(email.date);
-                    return emailDate.toDateString() === today;
-                })
-                .slice(0, 5);
-
-            if (todaysEmails.length === 0) {
+            if (!Array.isArray(emails) || emails.length === 0) {
                 emailCard.style.display = 'none';
+                emailContent.innerHTML = '';
                 return;
             }
+
+            const visibleEmails = emails.slice(0, 5);
 
             emailCard.style.display = 'block';
+            emailCard.classList.remove('collapsed');
+            emailCard.style.opacity = '1';
+            emailCard.style.visibility = 'visible';
 
-            emailContent.innerHTML = todaysEmails.map(email => {
+            emailContent.innerHTML = visibleEmails.map(email => {
                 const sentDate = new Date(email.date);
                 const minutesAgo = Math.round((new Date() - sentDate) / (1000 * 60));
 
