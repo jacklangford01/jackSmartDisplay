@@ -38,6 +38,9 @@ const fs = require('fs');
 let calendar = null;
 let tasks = null;
 
+let gmail = null;
+let drive = null;
+
 const CALENDAR_IDS = [
   'jacklangford2004@gmail.com',
   'mnlp6igj0d72t8pptd6c8ugqr8@group.calendar.google.com',
@@ -76,6 +79,14 @@ try {
 
       console.log('✅ Google Calendar API initialized successfully with OAuth2');
       console.log('✅ Google Tasks API initialized successfully with OAuth2');
+
+      /// new gmail API setup
+      gmail = google.gmail({ version: 'v1', auth });
+      console.log('✅ Gmail API initialized successfully with OAuth2');
+
+      // Google photos API setup (using Drive API for read-only access to photos)
+      drive = google.drive({ version: 'v3', auth });
+      console.log('✅ Drive API initialized');
     }
   } else {
     console.log('⚠️ client_secret.json or token.json not found');
@@ -287,6 +298,103 @@ app.get('/api/calendar/agenda', async (req, res) => {
   } catch (error) {
     console.error('Error fetching calendar agenda:', error);
     res.json([]);
+  }
+});
+
+// Gmail API endpoint for important emails
+app.get('/api/gmail/important', async (req, res) => {
+  try {
+    if (!gmail) {
+      return res.json([]);
+    }
+
+    const listResponse = await gmail.users.messages.list({
+      userId: 'me',
+      q: 'is:important is:unread newer_than:7d',
+      maxResults: 5
+    });
+
+    const messages = listResponse.data.messages || [];
+
+    if (!messages.length) {
+      return res.json([]);
+    }
+
+    const detailedMessages = await Promise.all(
+      messages.map(async (msg) => {
+        const detail = await gmail.users.messages.get({
+          userId: 'me',
+          id: msg.id,
+          format: 'metadata',
+          metadataHeaders: ['From', 'Subject', 'Date']
+        });
+
+        const headers = detail.data.payload?.headers || [];
+
+        const getHeader = (name) =>
+          headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || '';
+
+        return {
+          id: msg.id,
+          from: getHeader('From'),
+          subject: getHeader('Subject') || '(No subject)',
+          date: getHeader('Date'),
+          snippet: detail.data.snippet || ''
+        };
+      })
+    );
+
+    res.json(detailedMessages);
+  } catch (error) {
+    console.error('Gmail important error:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to fetch important emails' });
+  }
+});
+
+//Google photos API endpoint for recent photos (using Drive API to access photos)
+app.get('/api/photos/:folder', async (req, res) => {
+  try {
+    if (!drive) return res.json([]);
+
+    const folderName = req.params.folder;
+
+    // 1. Find parent folder
+    const parent = await drive.files.list({
+      q: `name='Smart Display Images' and mimeType='application/vnd.google-apps.folder'`,
+      fields: 'files(id, name)'
+    });
+
+    if (!parent.data.files.length) return res.json([]);
+
+    const parentId = parent.data.files[0].id;
+
+    // 2. Find subfolder
+    const folder = await drive.files.list({
+      q: `name='${folderName}' and '${parentId}' in parents`,
+      fields: 'files(id, name)'
+    });
+
+    if (!folder.data.files.length) return res.json([]);
+
+    const folderId = folder.data.files[0].id;
+
+    // 3. Get images
+    const files = await drive.files.list({
+      q: `'${folderId}' in parents and mimeType contains 'image/'`,
+      fields: 'files(id, name)',
+      pageSize: 20
+    });
+
+    // 4. Build image URLs
+    const images = files.data.files.map(file => ({
+      id: file.id,
+      url: `https://drive.google.com/uc?id=${file.id}`
+    }));
+
+    res.json(images);
+  } catch (err) {
+    console.error('Drive photos error:', err.message);
+    res.status(500).json([]);
   }
 });
 

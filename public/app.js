@@ -236,6 +236,7 @@ class SmartDisplay {
         this.loadPhotos();
         this.updateBlueLightFilter();
         this.renderDashboardStrip();
+        this.loadImportantEmails();
         this.dashboardTabTimer = setInterval(() => this.cycleDashboardStrip(), DASHBOARD_CONFIG.cycleIntervalMs);
         
         // Optimize intervals based on power mode
@@ -307,6 +308,9 @@ class SmartDisplay {
 
         // Air quality data
         setInterval(() => this.loadAirQuality(), 30 * 60 * 1000);
+
+        // Email Data
+        setInterval(() => this.loadImportantEmails(), 10 * 60 * 1000);
         
         // Debounced resize handler
         let resizeTimeout;
@@ -882,6 +886,83 @@ cycleDashboardStrip() {
                 console.error('Error loading commute:', error);
                 this.liveCommuteTab = null;
             }
+        }
+
+        async loadImportantEmails() {
+            try {
+                const response = await fetch('/api/gmail/important');
+                const emails = await response.json();
+
+                if (emails.error) {
+                    console.error('Email API error:', emails.error);
+                    this.updateEmailDisplay([]);
+                    return;
+                }
+
+                this.updateEmailDisplay(emails);
+            } catch (error) {
+                console.error('Error loading important emails:', error);
+                this.updateEmailDisplay([]);
+            }
+        }
+
+        updateEmailDisplay(emails) {
+            const emailCard = document.getElementById('emailCard');
+            const emailContent = document.getElementById('emailContent');
+
+            if (!emailCard || !emailContent) return;
+
+            if (!emails || emails.length === 0) {
+                emailCard.style.display = 'none';
+                return;
+            }
+
+            const today = new Date().toDateString();
+
+            const todaysEmails = emails
+                .filter(email => {
+                    const emailDate = new Date(email.date);
+                    return emailDate.toDateString() === today;
+                })
+                .slice(0, 5);
+
+            if (todaysEmails.length === 0) {
+                emailCard.style.display = 'none';
+                return;
+            }
+
+            emailCard.style.display = 'block';
+
+            emailContent.innerHTML = todaysEmails.map(email => {
+                const sentDate = new Date(email.date);
+                const minutesAgo = Math.round((new Date() - sentDate) / (1000 * 60));
+
+                let recencyClass = 'email-old';
+
+                if (minutesAgo <= 30) {
+                    recencyClass = 'email-now';
+                } else if (minutesAgo <= 120) {
+                    recencyClass = 'email-recent';
+                } else if (minutesAgo <= 360) {
+                    recencyClass = 'email-normal';
+                }
+
+                const timeText = sentDate.toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit'
+                });
+
+                const senderName = this.cleanEmailSender(email.from);
+                const subject = email.subject || '(No subject)';
+
+                return `
+                    <div class="email-item ${recencyClass}">
+                        <div class="email-subject">${subject}</div>
+                        <div class="email-sender">${senderName}</div>
+                        <div class="email-time">${timeText}</div>
+                    </div>
+                `;
+            }).join('');
         }
 
 
