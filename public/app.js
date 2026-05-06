@@ -26,7 +26,7 @@ function getMasterTimeOfDay() {
 
     // manual for testing
 
-    // return 'lateNight';
+    // return 'morning';
 
 
 }
@@ -1632,8 +1632,12 @@ showRandomPhoto() {
             const windGust = weatherData.daily.wind_gusts_10m_max ? Math.round(weatherData.daily.wind_gusts_10m_max[index]) : 0;
             const iconClass = this.getWeatherIcon(weatherCode) || 'fa-cloud weather-cloudy';
 
-            const uvIndex = weatherData.daily.uv_index_max ? weatherData.daily.uv_index_max[index] : 'N/A';
+           const uvIndex = weatherData.daily.uv_index_max
+                ? weatherData.daily.uv_index_max[index]
+                : 0;
+
             const uvClass = this.getUVClass(uvIndex);
+            const showUV = uvIndex > 1;
             
             return `
                 <div class="forecast-day" onclick="smartDisplay.openHourlyForecast(${index})" style="cursor: pointer;">
@@ -1658,9 +1662,12 @@ showRandomPhoto() {
                         <div class="forecast-detail-item">
                             <span class="forecast-detail-label">Gusts:</span> ${windGust} mph
                         </div>
+                    ${uvIndex >= 1 ? `
                         <div class="forecast-detail-item">
-                            <span class="forecast-detail-label">UV:</span> <span class="${uvClass}">${uvIndex}</span>
+                            <span class="forecast-detail-label">UV:</span> 
+                            <span class="${uvClass}">${Math.round(uvIndex)}</span>
                         </div>
+                    ` : ''}
                     </div>
                 </div>
             `;
