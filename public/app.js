@@ -1434,112 +1434,102 @@ getWeatherDescription(code) {
     }
 
     async loadPhotos() {
-    const hour = new Date().getHours();
+        let folder = getMasterTimeOfDay();
 
-    let timeOfDay = 'afternoon'; // Default to afternoon if time-based loading is disabled
+            if (folder === 'lateNight') {
+                folder = 'night';
+            }
 
-    if (hour >= 5 && hour < 8) {
-        timeOfDay = 'earlyMorning';
-    } else if (hour >= 8 && hour < 11
-    ) {
-        timeOfDay = 'morning';
-    } else if (hour >= 11 && hour < 17) {
-        timeOfDay = 'afternoon';
-    } else if (hour >= 17 && hour < 20) {
-        timeOfDay = 'evening';
-    } else {
-        timeOfDay = 'night';
-    }
-}
+        try {
+            const response = await fetch(`/api/photos/${folder}`);
+            const photos = await response.json();
 
-getPhotoSetForTimeOfDay() {
-    const timeOfDay = getMasterTimeOfDay();
+            if (!Array.isArray(photos) || photos.length === 0) {
+                console.log(`No Drive photos found for ${folder}`);
+                this.photos = this.getPhotoSetForTimeOfDay();
+            } else {
+                this.photos = this.shufflePhotos(photos);
+            }
 
-    const photosByTime = {
-        earlyMorning: [
-            'images/earlyMorning/m1.jpg',
-            'images/earlyMorning/m2.jpg',
-            'images/earlyMorning/m3.jpg'
-        ],
-        morning: [
-            'images/morning/m1.jpg',
-            'images/morning/m2.jpg',
-            'images/morning/m3.jpg',
-            'images/morning/m4.jpg',
-            'images/morning/m5.jpg',
-            'images/morning/m6.jpg',
-            'images/morning/m7.jpg'
-        ],
-        afternoon: [
-            'images/afternoon/a1.jpg',
-            'images/afternoon/a2.jpg',
-            'images/afternoon/a3.jpg',
-            'images/afternoon/a4.jpg',
-            'images/afternoon/a5.jpg',
-            'images/afternoon/a6.jpg',
-            'images/afternoon/a7.jpg',
-            'images/afternoon/a8.jpg',
-            'images/afternoon/a9.jpg',
-            'images/afternoon/a10.jpg',
-            'images/afternoon/a11.jpg',
-            'images/afternoon/a12.jpg',
-            'images/afternoon/a13.jpg',
-            'images/afternoon/a14.jpg',
-            'images/afternoon/a15.jpg',
-            'images/afternoon/a16.jpg',
-            'images/afternoon/a17.jpg',
-            'images/afternoon/a18.jpg',
-            'images/afternoon/a19.jpg',
-            'images/afternoon/a20.jpg'
-        ],
-        evening: [
-            'images/evening/e1.jpg',
-            'images/evening/e2.jpg',
-            'images/evening/e3.jpg',
-            'images/evening/e4.jpg',
-            'images/evening/e5.jpg',
-            'images/evening/e6.jpg',
-            'images/evening/e7.jpg',
-            'images/evening/e8.jpg'
-        ],
-        night: [
-            'images/night/n1.jpg',
-            'images/night/n2.jpg',
-            'images/night/n3.jpg',
-            'images/night/n4.jpg',
-            'images/night/n5.jpg',
-            'images/night/n7.jpg',
-            'images/night/n8.jpg'
-        ],
-        lateNight: [
-            'images/night/n1.jpg',
-            'images/night/n2.jpg',
-            'images/night/n3.jpg',
-            'images/night/n4.jpg',
-            'images/night/n5.jpg',
-            'images/night/n7.jpg',
-            'images/night/n8.jpg'
-        ]
-    };
+            this.showRandomPhoto();
 
-    return photosByTime[timeOfDay] || photosByTime.afternoon;
-}
+            if (this.photoInterval) {
+                clearInterval(this.photoInterval);
+            }
 
-loadPhotos() {
-    this.photos = this.getPhotoSetForTimeOfDay();
-    this.showRandomPhoto();
+            const photoChangeInterval = this.isLowPowerMode ? 120000 : 60000;
 
-    if (this.photoInterval) {
-        clearInterval(this.photoInterval);
+            this.photoInterval = setInterval(async () => {
+                const newFolder = getMasterTimeOfDay();
+
+                try {
+                    const response = await fetch(`/api/photos/${newFolder}`);
+                    const freshPhotos = await response.json();
+
+                    if (Array.isArray(freshPhotos) && freshPhotos.length > 0) {
+                        this.photos = this.shufflePhotos(freshPhotos);
+                    }
+
+                    this.showRandomPhoto();
+                } catch (error) {
+                    console.error('Error refreshing Drive photos:', error);
+                    this.showRandomPhoto();
+                }
+            }, photoChangeInterval);
+
+        } catch (error) {
+            console.error('Error loading Drive photos:', error);
+            this.photos = this.getPhotoSetForTimeOfDay();
+            this.showRandomPhoto();
+        }
+
+        
     }
 
-    const photoChangeInterval = this.isLowPowerMode ? 120000 : 60000;
+    formatPhotoDate(rawDate) {
+        if (!rawDate) return 'Date unavailable';
 
-    this.photoInterval = setInterval(() => {
-        this.photos = this.getPhotoSetForTimeOfDay();
-        this.showRandomPhoto();
-    }, photoChangeInterval);
-}
+        let normalizedDate = rawDate;
+
+        // Convert EXIF date format: 2024:02:02 20:30:02
+        if (/^\d{4}:\d{2}:\d{2}/.test(rawDate)) {
+            normalizedDate = rawDate.replace(
+                /^(\d{4}):(\d{2}):(\d{2})\s/,
+                '$1-$2-$3T'
+            );
+        }
+
+        const date = new Date(normalizedDate);
+
+        if (isNaN(date.getTime())) {
+            return 'Date unavailable';
+        }
+
+        return `Taken ${date.toLocaleDateString('en-US', {
+            month: 'long',
+            year: 'numeric'
+        })}`;
+    }
+
+    shufflePhotos(photos) {
+    return [...photos].sort(() => Math.random() - 0.5);
+    }
+
+// loadPhotos() {
+//     this.photos = this.getPhotoSetForTimeOfDay();
+//     this.showRandomPhoto();
+
+//     if (this.photoInterval) {
+//         clearInterval(this.photoInterval);
+//     }
+
+//     const photoChangeInterval = this.isLowPowerMode ? 120000 : 60000;
+
+//     this.photoInterval = setInterval(() => {
+//         this.photos = this.getPhotoSetForTimeOfDay();
+//         this.showRandomPhoto();
+//     }, photoChangeInterval);
+// }
 
 showRandomPhoto() {
     if (!this.photos || this.photos.length === 0) return;
@@ -1548,7 +1538,9 @@ showRandomPhoto() {
     if (!slideshowContainer) return;
 
     const randomIndex = Math.floor(Math.random() * this.photos.length);
-    const imageUrl = this.photos[randomIndex];
+    const photo = this.photos[randomIndex];
+
+    const imageUrl = typeof photo === 'string' ? photo : photo.url;
 
     slideshowContainer.innerHTML = `
         <div class="photo-slide active photo-kenburns"
@@ -1556,16 +1548,22 @@ showRandomPhoto() {
         </div>
     `;
 
-    // Placeholder metadata
     const location = document.getElementById('photoMetaLocation');
     const date = document.getElementById('photoMetaDate');
 
     if (location) {
-        location.textContent = 'Sedona, Arizona';
+        location.textContent =
+            photo.metadata?.locationName ||
+            'Unknown location';
     }
 
     if (date) {
-        date.textContent = 'Taken March 2025';
+        const takenDate =
+            photo.metadata?.time ||
+            photo.createdTime ||
+            null;
+
+        date.textContent = this.formatPhotoDate(takenDate);
     }
 }
 

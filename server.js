@@ -41,6 +41,54 @@ let tasks = null;
 let gmail = null;
 let drive = null;
 
+const locationCache = new Map();
+
+const heicConvert = require('heic-convert');
+
+async function reverseGeocode(lat, lon) {
+  if (!lat || !lon) return null;
+
+  const key = `${Number(lat).toFixed(3)},${Number(lon).toFixed(3)}`;
+
+  if (locationCache.has(key)) {
+    return locationCache.get(key);
+  }
+
+  try {
+    const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+      params: {
+        format: 'jsonv2',
+        lat,
+        lon
+      },
+      headers: {
+        'User-Agent': 'JackSmartDisplay/1.0'
+      }
+    });
+
+    const address = response.data.address || {};
+
+    const location =
+      address.city ||
+      address.town ||
+      address.village ||
+      address.suburb ||
+      address.county ||
+      address.state ||
+      null;
+
+    const formatted = location && address.state
+      ? `${location}, ${address.state}`
+      : location;
+
+    locationCache.set(key, formatted);
+    return formatted;
+  } catch (error) {
+    console.error('Reverse geocode error:', error.message);
+    return null;
+  }
+}
+
 const CALENDAR_IDS = [
   'jacklangford2004@gmail.com',
   'mnlp6igj0d72t8pptd6c8ugqr8@group.calendar.google.com',
@@ -101,66 +149,70 @@ app.get('/', (req, res) => {
 });
 
 // Unsplash API endpoint for nature photos
-app.get('/api/photos/:query?', async (req, res) => {
-  try {
-    const query = req.params.query || 'nature landscape';
-    const unsplashAccessKey = process.env.UNSPLASH_ACCESS_KEY;
-    const unsplashSecretKey = process.env.UNSPLASH_SECRET_KEY;
+
+//Now obsolete since we're using Google Drive for photos, but keeping this code in case we want to add an additional photo source in the future
+
+
+// app.get('/api/photos/:query?', async (req, res) => {
+//   try {
+//     const query = req.params.query || 'nature landscape';
+//     const unsplashAccessKey = process.env.UNSPLASH_ACCESS_KEY;
+//     const unsplashSecretKey = process.env.UNSPLASH_SECRET_KEY;
     
-    if (!unsplashAccessKey) {
-      // Fallback to mock data if no API key
-      return res.json({
-        mediaItems: [
-          {
-            id: '1',
-            baseUrl: 'https://picsum.photos/1920/1080?random=1',
-            filename: 'nature1.jpg',
-            photographer: 'Unsplash',
-            photographerUrl: 'https://unsplash.com'
-          },
-          {
-            id: '2',
-            baseUrl: 'https://picsum.photos/1920/1080?random=2',
-            filename: 'nature2.jpg',
-            photographer: 'Unsplash',
-            photographerUrl: 'https://unsplash.com'
-          },
-          {
-            id: '3',
-            baseUrl: 'https://picsum.photos/1920/1080?random=3',
-            filename: 'nature3.jpg',
-            photographer: 'Unsplash',
-            photographerUrl: 'https://unsplash.com'
-          }
-        ]
-      });
-    }
+//     if (!unsplashAccessKey) {
+//       // Fallback to mock data if no API key
+//       return res.json({
+//         mediaItems: [
+//           {
+//             id: '1',
+//             baseUrl: 'https://picsum.photos/1920/1080?random=1',
+//             filename: 'nature1.jpg',
+//             photographer: 'Unsplash',
+//             photographerUrl: 'https://unsplash.com'
+//           },
+//           {
+//             id: '2',
+//             baseUrl: 'https://picsum.photos/1920/1080?random=2',
+//             filename: 'nature2.jpg',
+//             photographer: 'Unsplash',
+//             photographerUrl: 'https://unsplash.com'
+//           },
+//           {
+//             id: '3',
+//             baseUrl: 'https://picsum.photos/1920/1080?random=3',
+//             filename: 'nature3.jpg',
+//             photographer: 'Unsplash',
+//             photographerUrl: 'https://unsplash.com'
+//           }
+//         ]
+//       });
+//     }
     
-    const response = await axios.get(`https://api.unsplash.com/search/photos`, {
-      params: {
-        query: query,
-        per_page: 20,
-        orientation: 'landscape'
-      },
-      headers: {
-        'Authorization': `Client-ID ${unsplashAccessKey}`
-      }
-    });
+//     const response = await axios.get(`https://api.unsplash.com/search/photos`, {
+//       params: {
+//         query: query,
+//         per_page: 20,
+//         orientation: 'landscape'
+//       },
+//       headers: {
+//         'Authorization': `Client-ID ${unsplashAccessKey}`
+//       }
+//     });
     
-    const photos = response.data.results.map((photo, index) => ({
-      id: photo.id,
-      baseUrl: photo.urls.regular,
-      filename: `nature${index + 1}.jpg`,
-      photographer: photo.user.name,
-      photographerUrl: photo.user.links.html
-    }));
+//     const photos = response.data.results.map((photo, index) => ({
+//       id: photo.id,
+//       baseUrl: photo.urls.regular,
+//       filename: `nature${index + 1}.jpg`,
+//       photographer: photo.user.name,
+//       photographerUrl: photo.user.links.html
+//     }));
     
-    res.json({ mediaItems: photos });
-  } catch (error) {
-    console.error('Error fetching photos:', error);
-    res.status(500).json({ error: 'Failed to fetch photos' });
-  }
-});
+//     res.json({ mediaItems: photos });
+//   } catch (error) {
+//     console.error('Error fetching photos:', error);
+//     res.status(500).json({ error: 'Failed to fetch photos' });
+//   }
+// });
 
 // Google Calendar API endpoint
 app.get('/api/calendar/events', async (req, res) => {
@@ -360,43 +412,126 @@ app.get('/api/photos/:folder', async (req, res) => {
 
     // 1. Find parent folder
     const parent = await drive.files.list({
-      q: `name='Smart Display Images' and mimeType='application/vnd.google-apps.folder'`,
+      q: `name='Smart Display Images' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       fields: 'files(id, name)'
     });
 
-    if (!parent.data.files.length) return res.json([]);
+    if (!parent.data.files.length) {
+      return res.json([]);
+    }
 
     const parentId = parent.data.files[0].id;
 
     // 2. Find subfolder
     const folder = await drive.files.list({
-      q: `name='${folderName}' and '${parentId}' in parents`,
+      q: `name='${folderName}' and '${parentId}' in parents and trashed=false`,
       fields: 'files(id, name)'
     });
 
-    if (!folder.data.files.length) return res.json([]);
+    if (!folder.data.files.length) {
+      return res.json([]);
+    }
 
     const folderId = folder.data.files[0].id;
 
-    // 3. Get images
+    // 3. Get image files
     const files = await drive.files.list({
-      q: `'${folderId}' in parents and mimeType contains 'image/'`,
-      fields: 'files(id, name)',
+      q: `'${folderId}' in parents and mimeType contains 'image/' and trashed=false`,
+      fields: 'files(id,name,mimeType,createdTime,imageMediaMetadata)',
       pageSize: 20
     });
 
-    // 4. Build image URLs
-    const images = files.data.files.map(file => ({
-      id: file.id,
-      url: `https://drive.google.com/uc?id=${file.id}`
+    // 4. Build image objects
+    const images = await Promise.all(files.data.files.map(async file => {
+      const lat = file.imageMediaMetadata?.location?.latitude || null;
+      const lon = file.imageMediaMetadata?.location?.longitude || null;
+
+      const locationName = await reverseGeocode(lat, lon);
+
+      return {
+        id: file.id,
+        url: `/api/photo-file/${file.id}`,
+        filename: file.name,
+        createdTime: file.createdTime,
+
+        metadata: {
+          width: file.imageMediaMetadata?.width || null,
+          height: file.imageMediaMetadata?.height || null,
+          cameraMake: file.imageMediaMetadata?.cameraMake || null,
+          cameraModel: file.imageMediaMetadata?.cameraModel || null,
+          latitude: lat,
+          longitude: lon,
+          locationName: locationName || 'Unknown location',
+          time: file.imageMediaMetadata?.time || null
+        }
+      };
     }));
 
     res.json(images);
+
   } catch (err) {
     console.error('Drive photos error:', err.message);
     res.status(500).json([]);
   }
 });
+
+app.get('/api/photo-file/:id', async (req, res) => {
+  try {
+    if (!drive) {
+      return res.status(500).send('Drive not initialized');
+    }
+
+    const fileId = req.params.id;
+
+    const meta = await drive.files.get({
+      fileId,
+      fields: 'mimeType,name'
+    });
+
+    const response = await drive.files.get(
+      {
+        fileId,
+        alt: 'media'
+      },
+      {
+        responseType: 'arraybuffer'
+      }
+    );
+
+    const buffer = Buffer.from(response.data);
+    const mimeType = meta.data.mimeType || '';
+
+    const isHeic =
+      mimeType.includes('heic') ||
+      mimeType.includes('heif') ||
+      meta.data.name.toLowerCase().endsWith('.heic') ||
+      meta.data.name.toLowerCase().endsWith('.heif');
+
+    if (isHeic) {
+      const jpegBuffer = await heicConvert({
+        buffer,
+        format: 'JPEG',
+        quality: 0.9
+      });
+
+      res.setHeader('Content-Type', 'image/jpeg');
+      return res.send(Buffer.from(jpegBuffer));
+    }
+
+    res.setHeader('Content-Type', mimeType || 'image/jpeg');
+    res.send(buffer);
+
+  } catch (err) {
+    console.error('Photo stream error:', err.message);
+    res.status(500).send('Failed to load image');
+  }
+});
+
+
+
+
+
+
 
 // Weather API endpoint (using OpenMeteo)
 app.get('/api/weather', async (req, res) => {
