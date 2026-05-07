@@ -1166,7 +1166,15 @@ getWeatherDescription(code) {
 
         if (!box || !icon || !status || !main || !detail) return;
 
-        const uv = weatherData.current?.uv_index ?? 0;
+        const uv = Number(weatherData.current?.uv_index ?? 0);
+
+        // Hide UV box when UV is basically zero
+        if (uv < 1) {
+            box.style.display = 'none';
+            return;
+        }
+
+        box.style.display = 'flex';
 
         let level = 'low';
         let label = 'Low';
@@ -1198,7 +1206,7 @@ getWeatherDescription(code) {
         box.className = `uv-inner ${level}`;
         icon.className = `fas ${iconClass}`;
         status.textContent = label;
-        main.textContent = `UV ${uv}`;
+        main.textContent = `UV ${Math.round(uv)}`;
         detail.textContent = advice;
     }
 
@@ -1543,8 +1551,22 @@ showRandomPhoto() {
     const imageUrl = this.photos[randomIndex];
 
     slideshowContainer.innerHTML = `
-        <div class="photo-slide active" style="background-image: url('${imageUrl}')"></div>
+        <div class="photo-slide active photo-kenburns"
+             style="background-image: url('${imageUrl}')">
+        </div>
     `;
+
+    // Placeholder metadata
+    const location = document.getElementById('photoMetaLocation');
+    const date = document.getElementById('photoMetaDate');
+
+    if (location) {
+        location.textContent = 'Sedona, Arizona';
+    }
+
+    if (date) {
+        date.textContent = 'Taken March 2025';
+    }
 }
 
     openSettings() {
