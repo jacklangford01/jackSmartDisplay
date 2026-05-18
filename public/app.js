@@ -1452,22 +1452,22 @@ getWeatherDescription(code) {
     async loadPhotos() {
         let folder = getMasterTimeOfDay();
 
-            if (folder === 'lateNight') {
-                folder = 'night';
-            }
+        if (folder === 'lateNight') {
+            folder = 'night';
+        }
 
         try {
             const response = await fetch(`/api/photos/${folder}`);
             const photos = await response.json();
 
-            if (!Array.isArray(photos) || photos.length === 0) {
-                console.log(`No Drive photos found for ${folder}`);
-                this.photos = this.getPhotoSetForTimeOfDay();
-            } else {
+            if (Array.isArray(photos) && photos.length > 0) {
                 this.photos = this.shufflePhotos(photos);
+            } else {
+                console.log(`No Drive photos found for ${folder}, using local fallback`);
+                this.photos = this.shufflePhotos(this.getPhotoSetForTimeOfDay());
             }
 
-            this.showRandomPhoto();
+            this.showNextPhotoFromQueue();
 
             if (this.photoInterval) {
                 clearInterval(this.photoInterval);
@@ -1475,32 +1475,27 @@ getWeatherDescription(code) {
 
             const photoChangeInterval = this.isLowPowerMode ? 120000 : 60000;
 
-            this.photoInterval = setInterval(async () => {
-                const newFolder = getMasterTimeOfDay();
-
-                try {
-                    const response = await fetch(`/api/photos/${newFolder}`);
-                    const freshPhotos = await response.json();
-
-                    if (Array.isArray(freshPhotos) && freshPhotos.length > 0) {
-                        this.photos = this.shufflePhotos(freshPhotos);
-                    }
-
-                    this.showRandomPhoto();
-                } catch (error) {
-                    console.error('Error refreshing Drive photos:', error);
-                    this.showRandomPhoto();
-                }
+            this.photoInterval = setInterval(() => {
+                this.showNextPhotoFromQueue();
             }, photoChangeInterval);
 
         } catch (error) {
             console.error('Error loading Drive photos:', error);
-            this.photos = this.getPhotoSetForTimeOfDay();
-            this.showRandomPhoto();
+            this.photos = this.shufflePhotos(this.getPhotoSetForTimeOfDay());
+            this.showNextPhotoFromQueue();
         }
-
-        
     }
+
+    async showNextPhotoFromQueue() {
+            if (!this.photos || this.photos.length === 0) {
+                console.log('Photo queue empty, reloading photos');
+                await this.loadPhotos();
+                return;
+            }
+
+            const photo = this.photos.shift();
+            this.showPhoto(photo);
+        }
 
     formatPhotoDate(rawDate) {
         if (!rawDate) return 'Date unavailable';
@@ -1547,22 +1542,21 @@ getWeatherDescription(code) {
 //     }, photoChangeInterval);
 // }
 
-showRandomPhoto() {
-    if (!this.photos || this.photos.length === 0) return;
-
+showPhoto(photo) {
     const slideshowContainer = this.domCache.photoSlideshow;
-    if (!slideshowContainer) return;
-
-    const randomIndex = Math.floor(Math.random() * this.photos.length);
-    const photo = this.photos[randomIndex];
+    if (!slideshowContainer || !photo) return;
 
     const imageUrl = typeof photo === 'string' ? photo : photo.url;
 
-    slideshowContainer.innerHTML = `
-        <div class="photo-slide active photo-kenburns"
-             style="background-image: url('${imageUrl}')">
-        </div>
-    `;
+    let slide = slideshowContainer.querySelector('.photo-slide');
+
+    if (!slide) {
+        slide = document.createElement('div');
+        slide.className = 'photo-slide active photo-kenburns';
+        slideshowContainer.appendChild(slide);
+    }
+
+    slide.style.backgroundImage = `url('${imageUrl}')`;
 
     const location = document.getElementById('photoMetaLocation');
     const date = document.getElementById('photoMetaDate');
