@@ -241,22 +241,22 @@ class SmartDisplay {
         
         // Optimize intervals based on power mode
         const intervals = this.isLowPowerMode ? {
-            time: 2000,           // 2 seconds instead of 1
-            weather: 45 * 60 * 1000,  // 45 minutes instead of 30
-            calendar: 2 * 60 * 1000,  // 2 minutes instead of 1
-            photos: 3 * 60 * 1000,    // 3 minutes instead of 1.5
-            forecast: 20 * 60 * 1000, // 20 minutes instead of 15
-            agenda: 20 * 60 * 1000,   // 20 minutes instead of 15
-            summary: 30 * 1000        // 30 seconds instead of 10
-        } : {
-            time: 1000,
-            weather: 30 * 60 * 1000,
-            calendar: 60 * 1000,
-            photos: 90 * 1000,
-            forecast: 15 * 60 * 1000,
-            agenda: 15 * 60 * 1000,
-            summary: 60 * 1000 // Check every minute instead of every 10 seconds
-        };
+                time: 2000,
+                weather: 45 * 60 * 1000,
+                calendar: 15 * 60 * 1000,
+                photos: 3 * 60 * 1000,
+                forecast: 20 * 60 * 1000,
+                agenda: 20 * 60 * 1000,
+                summary: 30 * 1000
+            } : {
+                time: 1000,
+                weather: 30 * 60 * 1000,
+                calendar: 10 * 60 * 1000,
+                photos: 90 * 1000,
+                forecast: 15 * 60 * 1000,
+                agenda: 15 * 60 * 1000,
+                summary: 60 * 1000
+            };
         
         // Update time with throttling
         setInterval(() => this.updateTime(), intervals.time);
@@ -272,7 +272,7 @@ class SmartDisplay {
         setInterval(() => this.loadEveningScheduleEvents(), intervals.calendar);
         
         // Refresh photos less frequently
-        setInterval(() => this.loadPhotos(), intervals.photos);
+        // setInterval(() => this.loadPhotos(), intervals.photos);
         
         // Load forecast and agenda initially
         this.loadForecast();
@@ -294,7 +294,7 @@ class SmartDisplay {
         setInterval(() => this.animateTextRefresh(), 600000);
 
         // dashboard strip
-        setInterval(() => this.renderDashboardStrip(), intervals.time);
+        // setInterval(() => this.renderDashboardStrip(), intervals.time);
 
         //commute data
         setInterval(() => this.loadCommute(), 10 * 60 * 1000);
