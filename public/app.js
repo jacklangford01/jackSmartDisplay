@@ -293,6 +293,22 @@ class SmartDisplay {
         //display refresh
         setInterval(() => this.animateTextRefresh(), 600000);
 
+        // Refresh at the top of every hour
+        //(helps mitigate chromium memory capacity issues)
+        const scheduleHourlyRefresh = () => {
+            const now = new Date();
+
+            const msUntilNextHour =
+                ((60 - now.getMinutes()) * 60 * 1000) -
+                (now.getSeconds() * 1000);
+
+            setTimeout(() => {
+                window.location.reload();
+            }, msUntilNextHour);
+        };
+
+        scheduleHourlyRefresh();
+
         // dashboard strip
         // setInterval(() => this.renderDashboardStrip(), intervals.time);
 
