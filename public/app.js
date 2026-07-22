@@ -199,6 +199,7 @@ class SmartDisplay {
             rightTouchArea: document.getElementById('rightTouchArea'),
             photoSlideshow: document.getElementById('photoSlideshow'),
             greetingMessage: document.getElementById('greetingMessage'),
+            overnightTemperature: document.getElementById('overnightTemperature'),
             morningCountdown: document.getElementById('morningCountdown'),
             morningCountdownGreeting: document.getElementById('morningCountdownGreeting'),
             morningCountdownLabel: document.getElementById('morningCountdownLabel'),
@@ -215,7 +216,6 @@ class SmartDisplay {
             summaryContent: document.getElementById('summaryContent'),
             homeAssistantFrame: document.getElementById('homeAssistantFrame'),
             settingsModal: document.getElementById('settingsModal'),
-            blackoutOverlay: document.getElementById('blackoutOverlay'),
             blueLightOverlay: document.getElementById('blueLightOverlay'),
             weatherTrend: document.getElementById('weatherTrend'),
             dashboardStrip: document.getElementById('dashboardStrip'),
@@ -923,6 +923,7 @@ cycleDashboardStrip() {
         const dateElement = this.domCache.dateDisplay;
 
         const currentTime = this.getMorningCountdownTime();
+        this.updateOvernightMode(currentTime);
         timeElement.textContent = currentTime.toLocaleTimeString('en-US', {
             hour: '2-digit',
             minute: '2-digit',
@@ -964,14 +965,17 @@ cycleDashboardStrip() {
         }
     }
 
-    //     const shouldBlackout =
-    //     hour > 22 ||
-    //     hour < 7;
+    }
 
-    // if (this.domCache.blackoutOverlay) {
-    //     this.domCache.blackoutOverlay.style.display = shouldBlackout ? 'block' : 'none';
-    // }
+    isOvernightMode(currentTime = new Date()) {
+        const forceOvernight = new URLSearchParams(window.location.search).get('testOvernight');
+        if (forceOvernight === 'true') return true;
+        const hour = currentTime.getHours();
+        return hour >= 22 || hour < 5;
+    }
 
+    updateOvernightMode(currentTime) {
+        document.body.classList.toggle('overnight-mode', this.isOvernightMode(currentTime));
     }
 
     updateAllTimeBars() {
@@ -1267,6 +1271,11 @@ getWeatherDescription(code) {
 
         if (!weatherBox || !tempElement || !conditionElement || !iconElement) return;
 
+        const currentTemp = Math.round(weatherData.current.temperature_2m);
+        if (this.domCache.overnightTemperature) {
+            this.domCache.overnightTemperature.textContent = `${currentTemp}°F`;
+        }
+
         // Hide weather and calendar during late night
         if (displayMode === 'hidden') {
             weatherBox.style.display = 'none';
@@ -1284,7 +1293,6 @@ getWeatherDescription(code) {
         }
 
         // Current weather default
-        const currentTemp = Math.round(weatherData.current.temperature_2m);
         const currentDesc = this.getWeatherDescription(weatherData.current.weather_code);
         const currentIcon = this.getWeatherIcon(weatherData.current.weather_code);
 

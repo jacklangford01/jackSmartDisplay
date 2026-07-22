@@ -352,6 +352,47 @@ body {
     color: rgba(255, 255, 255, 0.94);
 }
 
+.overnight-temperature {
+    display: none;
+    color: rgba(255, 255, 255, 0.94);
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1;
+    text-shadow: 0 3px 14px rgba(0, 0, 0, 0.55);
+}
+
+/* Minimal overnight display: 10:00 PM through 4:59 AM. */
+body.overnight-mode .photo-slide {
+    filter: brightness(0.15);
+    animation-play-state: paused;
+}
+
+body.overnight-mode .loading-photos {
+    opacity: 0.15;
+}
+
+body.overnight-mode .right-corner-stack,
+body.overnight-mode .left-corner-stack,
+body.overnight-mode .dashboard-strip,
+body.overnight-mode .greeting,
+body.overnight-mode .photo-meta-caption,
+body.overnight-mode .morning-countdown {
+    display: none !important;
+}
+
+body.overnight-mode .overnight-temperature {
+    display: block;
+}
+
+body.overnight-mode .overlay-info {
+    background: transparent;
+}
+
+body.overnight-mode .time-display {
+    gap: 18px;
+    margin-top: 0;
+}
+
 .weather-display {
     position: relative;
     width: 100%;
@@ -1491,15 +1532,6 @@ body {
 
 
 
-
-#blackoutOverlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: #000;
-    z-index: 999999;
-    cursor: none;
-}
 
 #blueLightOverlay {
     position: fixed;
