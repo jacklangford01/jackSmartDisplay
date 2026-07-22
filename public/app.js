@@ -924,6 +924,7 @@ cycleDashboardStrip() {
 
         const currentTime = this.getMorningCountdownTime();
         this.updateOvernightMode(currentTime);
+        this.updateWeekendNightMode(currentTime);
         timeElement.textContent = currentTime.toLocaleTimeString('en-US', {
             hour: '2-digit',
             minute: '2-digit',
@@ -976,6 +977,21 @@ cycleDashboardStrip() {
 
     updateOvernightMode(currentTime) {
         document.body.classList.toggle('overnight-mode', this.isOvernightMode(currentTime));
+    }
+
+    isWeekendNightMode(currentTime = new Date()) {
+        const forceWeekendNight = new URLSearchParams(window.location.search).get('testWeekendNight');
+        if (forceWeekendNight === 'true') return true;
+
+        const day = currentTime.getDay();
+        const hour = currentTime.getHours();
+        const eveningStart = (day === 5 || day === 6) && hour >= 19;
+        const afterMidnight = (day === 6 || day === 0) && hour < 5;
+        return eveningStart || afterMidnight;
+    }
+
+    updateWeekendNightMode(currentTime) {
+        document.body.classList.toggle('weekend-night-colors', this.isWeekendNightMode(currentTime));
     }
 
     updateAllTimeBars() {
