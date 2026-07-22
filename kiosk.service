@@ -11,6 +11,10 @@ ExecStart=/bin/bash /home/jacklangford/jackSmartDisplay/kiosk.sh
 Restart=always
 RestartSec=30
 KillMode=control-group
+# If Linux OOM-kills a Chromium renderer or GPU child, terminate the remaining
+# Chromium processes so Restart=always can relaunch a clean browser.
+OOMPolicy=kill
+TimeoutStopSec=10
 User=jacklangford
 Group=jacklangford
 
