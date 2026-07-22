@@ -198,6 +198,7 @@ class SmartDisplay {
             greetingMessage: document.getElementById('greetingMessage'),
             morningCountdown: document.getElementById('morningCountdown'),
             morningCountdownGreeting: document.getElementById('morningCountdownGreeting'),
+            morningCountdownLabel: document.getElementById('morningCountdownLabel'),
             morningCountdownTime: document.getElementById('morningCountdownTime'),
             morningCountdownTest: document.getElementById('morningCountdownTest'),
             timeDisplay: document.querySelector('.time'),
@@ -256,23 +257,40 @@ class SmartDisplay {
         if (!widget) return false;
 
         const minutesSinceMidnight = currentTime.getHours() * 60 + currentTime.getMinutes();
-        const isCountdownTime = minutesSinceMidnight >= 330 && minutesSinceMidnight < 360;
-        widget.hidden = !isCountdownTime;
+        let countdown = null;
 
-        if (!isCountdownTime) return false;
+        if (minutesSinceMidnight >= 330 && minutesSinceMidnight < 360) {
+            countdown = {
+                targetHour: 6,
+                title: `Happy ${currentTime.toLocaleDateString('en-US', { weekday: 'long' })}`,
+                label: 'Work starts in',
+                useTitleAsMainGreeting: true
+            };
+        } else if (minutesSinceMidnight >= 540 && minutesSinceMidnight < 600) {
+            countdown = {
+                targetHour: 10,
+                title: 'Lunch Break',
+                label: 'Back to work in',
+                useTitleAsMainGreeting: false
+            };
+        }
+
+        widget.hidden = !countdown;
+
+        if (!countdown) return false;
 
         const workStart = new Date(currentTime);
-        workStart.setHours(6, 0, 0, 0);
+        workStart.setHours(countdown.targetHour, 0, 0, 0);
         const remainingSeconds = Math.max(0, Math.ceil((workStart - currentTime) / 1000));
         const displayMinutes = Math.floor(remainingSeconds / 60);
         const displaySeconds = remainingSeconds % 60;
-        const weekday = currentTime.toLocaleDateString('en-US', { weekday: 'long' });
 
-        this.domCache.morningCountdownGreeting.textContent = `Happy ${weekday}`;
+        this.domCache.morningCountdownGreeting.textContent = countdown.title;
+        this.domCache.morningCountdownLabel.textContent = countdown.label;
         this.domCache.morningCountdownTime.textContent =
             `${String(displayMinutes).padStart(2, '0')}:${String(displaySeconds).padStart(2, '0')}`;
         this.domCache.morningCountdownTest.hidden = this.morningCountdownTestOffset === null;
-        return true;
+        return countdown.useTitleAsMainGreeting;
     }
 
     init() {

@@ -2355,7 +2355,7 @@ Slide and description*/
     color: rgba(255,255,255,0.72);
 }
 
-/* 5:30–6:00 AM work countdown */
+/* Work-start and lunch-break countdown card */
 .morning-countdown {
     position: absolute;
     right: 28px;
