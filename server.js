@@ -956,6 +956,78 @@ app.get('/api/commute', async (req, res) => {
     }
 });
 
+const WEEKEND_DESTINATIONS = [
+    { id: 'fashion-square', name: 'Scottsdale Fashion Square', caption: 'Old Town Scottsdale', coordinates: [-111.929451, 33.502777], fixed: true },
+    { id: 'casa-tempe', name: 'C.A.S.A. Tempe', caption: 'Mill Ave', coordinates: [-111.93975, 33.42456], fixed: true },
+    { id: 'pedal-haus', name: 'Pedal Haus', caption: 'Downtown Phoenix', coordinates: [-112.07048, 33.45857], fixed: true },
+    { id: 'downtown-mesa', name: 'Downtown Mesa', caption: 'Mesa Arts District', coordinates: [-111.83056, 33.41495], fixed: false },
+    { id: 'downtown-gilbert', name: 'Downtown Gilbert', caption: 'Heritage District', coordinates: [-111.7890, 33.3528], fixed: false },
+    { id: 'downtown-chandler', name: 'Downtown Chandler', caption: 'Historic Square', coordinates: [-111.8413117, 33.3033416], fixed: false },
+    { id: 'sedona', name: 'Sedona', caption: 'Red Rock Country', coordinates: [-111.7610, 34.8697], fixed: false },
+    { id: 'payson', name: 'Payson', caption: 'Rim Country', coordinates: [-111.3251, 34.2309], fixed: false },
+    { id: 'flagstaff', name: 'Flagstaff', caption: 'High Country', coordinates: [-111.6513, 35.1983], fixed: false }
+];
+
+let weekendDestinationsCache = null;
+let weekendDestinationsCacheTime = 0;
+const WEEKEND_DESTINATIONS_CACHE_MS = 10 * 60 * 1000;
+
+app.get('/api/weekend-destinations', async (req, res) => {
+    try {
+        if (weekendDestinationsCache && Date.now() - weekendDestinationsCacheTime < WEEKEND_DESTINATIONS_CACHE_MS) {
+            return res.json({ destinations: weekendDestinationsCache, cached: true });
+        }
+
+        const apiKey = process.env.ORS_API_KEY;
+        if (!apiKey || !process.env.COMMUTE_ORIGIN) {
+            return res.status(400).json({ error: 'Missing weekend route configuration' });
+        }
+
+        const [startLat, startLon] = process.env.COMMUTE_ORIGIN.split(',').map(Number);
+        const locations = [
+            [startLon, startLat],
+            ...WEEKEND_DESTINATIONS.map(destination => destination.coordinates)
+        ];
+
+        const response = await axios.post(
+            'https://api.openrouteservice.org/v2/matrix/driving-car',
+            {
+                locations,
+                sources: [0],
+                destinations: WEEKEND_DESTINATIONS.map((_, index) => index + 1),
+                metrics: ['duration', 'distance']
+            },
+            {
+                headers: {
+                    Authorization: apiKey,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        const durations = response.data.durations?.[0] || [];
+        const distances = response.data.distances?.[0] || [];
+        const destinations = WEEKEND_DESTINATIONS.map((destination, index) => ({
+            id: destination.id,
+            name: destination.name,
+            caption: destination.caption,
+            fixed: destination.fixed,
+            durationMinutes: durations[index] == null ? null : Math.round(durations[index] / 60),
+            distanceMiles: distances[index] == null ? null : Number((distances[index] / 1609.34).toFixed(1))
+        }));
+
+        weekendDestinationsCache = destinations;
+        weekendDestinationsCacheTime = Date.now();
+        res.json({ destinations });
+    } catch (error) {
+        console.error('Weekend destinations error:', error.response?.data || error.message);
+        if (weekendDestinationsCache) {
+            return res.json({ destinations: weekendDestinationsCache, cached: true, stale: true });
+        }
+        res.status(500).json({ error: 'Failed to fetch weekend destinations' });
+    }
+});
+
 
 // stock market API endpoint using Alpha Vantage
 app.get('/api/markets', async (req, res) => {

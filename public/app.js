@@ -152,6 +152,9 @@ class SmartDisplay {
         this.liveMorningScheduleTab = null;
 
         this.liveCommuteTab = null;
+        this.weekendDestinations = [];
+        this.weekendDestinationsLoading = false;
+        this.weekendDestinationsError = null;
 
         this.liveMarketsTab = null;
         this.liveCryptoTab = null;
@@ -405,6 +408,16 @@ getDashboardTabSet() {
     const timeOfDay = getMasterTimeOfDay();
     let tabSet = null;
 
+    if (this.isWeekendMode()) {
+        return {
+            title: 'Where to next?',
+            weekend: true,
+            destinations: this.weekendDestinations,
+            loading: this.weekendDestinationsLoading,
+            error: this.weekendDestinationsError
+        };
+    }
+
     if (timeOfDay === 'earlyMorning' || timeOfDay === 'morning') {
         tabSet = {
             title: 'Morning Brief...',
@@ -470,6 +483,11 @@ renderDashboardStrip() {
 
     const tabSet = this.getDashboardTabSet();
 
+    if (tabSet?.weekend) {
+        this.renderWeekendDashboard(tabSet);
+        return;
+    }
+
     if (!tabSet || !tabSet.tabs || !tabSet.tabs.length) {
         strip.style.display = 'none';
         return;
@@ -525,11 +543,116 @@ renderDashboardStrip() {
     `;
 }
 
+isWeekendMode(currentTime = new Date()) {
+    const forceWeekend = new URLSearchParams(window.location.search).get('testWeekend');
+    if (forceWeekend === 'true') return true;
+    const day = currentTime.getDay();
+    return day === 0 || day === 6 || (day === 5 && currentTime.getHours() >= 16);
+}
+
+getWeekendTimeClass(minutes) {
+    if (!Number.isFinite(minutes)) return 'weekend-time-unavailable';
+    if (minutes <= 25) return 'weekend-time-quick';
+    if (minutes <= 45) return 'weekend-time-moderate';
+    if (minutes <= 90) return 'weekend-time-long';
+    return 'weekend-time-roadtrip';
+}
+
+renderWeekendDestination(destination, rotating = false) {
+    if (!destination) return '';
+
+    const minutes = Number(destination.durationMinutes);
+    const timeText = Number.isFinite(minutes) ? `${minutes} min` : 'Unavailable';
+    const distanceText = Number.isFinite(Number(destination.distanceMiles))
+        ? `${destination.distanceMiles} mi`
+        : 'Route unavailable';
+
+    return `
+        <div class="weekend-destination ${rotating ? 'rotating' : ''}">
+            <div class="weekend-destination-info">
+                <div class="weekend-destination-name">${destination.name}</div>
+                <div class="weekend-destination-caption">${destination.caption} · ${distanceText}</div>
+            </div>
+            <div class="weekend-drive-time ${this.getWeekendTimeClass(minutes)}">${timeText}</div>
+        </div>
+    `;
+}
+
+renderWeekendDashboard(tabSet) {
+    const strip = this.domCache.dashboardStrip;
+    const body = this.domCache.dashboardStripBody;
+    const header = this.domCache.dashboardStripHeader;
+    const fixed = tabSet.destinations.filter(destination => destination.fixed);
+    const rotating = tabSet.destinations.filter(destination => !destination.fixed);
+    const rotatingDestination = rotating.length
+        ? rotating[this.dashboardTabIndex % rotating.length]
+        : null;
+
+    strip.style.display = 'block';
+    header.innerHTML = '';
+
+    if (tabSet.error) {
+        body.innerHTML = `
+            <div class="weekend-dashboard">
+                <div class="weekend-dashboard-title"><i class="fas fa-location-arrow"></i> ${tabSet.title}</div>
+                <div class="weekend-route-error">
+                    <i class="fas fa-triangle-exclamation"></i>
+                    <div>
+                        <div class="weekend-route-error-title">Drive times unavailable</div>
+                        <div class="weekend-route-error-detail">The routing service could not load current commute data.</div>
+                    </div>
+                </div>
+            </div>`;
+        return;
+    }
+
+    if (tabSet.loading || !tabSet.destinations.length) {
+        body.innerHTML = `
+            <div class="weekend-dashboard">
+                <div class="weekend-dashboard-title"><i class="fas fa-location-arrow"></i> ${tabSet.title}</div>
+                <div class="weekend-route-loading"><i class="fas fa-spinner fa-spin"></i> Loading drive times...</div>
+            </div>`;
+        return;
+    }
+
+    body.innerHTML = `
+        <div class="weekend-dashboard">
+            <div class="weekend-dashboard-title"><i class="fas fa-location-arrow"></i> ${tabSet.title}</div>
+            <div class="weekend-fixed-destinations">
+                ${fixed.map(destination => this.renderWeekendDestination(destination)).join('')}
+            </div>
+            <div class="weekend-rotating-label">Explore farther</div>
+            ${this.renderWeekendDestination(rotatingDestination, true)}
+            <div class="weekend-rotation-dots">
+                ${rotating.map((_, index) => `<span class="${index === this.dashboardTabIndex % rotating.length ? 'active' : ''}"></span>`).join('')}
+            </div>
+        </div>`;
+}
+
 cycleDashboardStrip() {
     const tabSet = this.getDashboardTabSet();
     if (!tabSet) return;
 
     const body = this.domCache.dashboardStripBody;
+
+    if (tabSet.weekend) {
+        if (!tabSet.destinations.length && !tabSet.loading && !tabSet.error) {
+            this.loadCommute();
+            return;
+        }
+
+        const rotatingCount = tabSet.destinations.filter(destination => !destination.fixed).length;
+        if (!rotatingCount) return;
+        const rotatingCard = body?.querySelector('.weekend-destination.rotating');
+        if (rotatingCard) rotatingCard.classList.add('brief-shift-out');
+
+        setTimeout(() => {
+            this.dashboardTabIndex = (this.dashboardTabIndex + 1) % rotatingCount;
+            this.renderDashboardStrip();
+        }, 180);
+        return;
+    }
+
     const list = body?.querySelector('.brief-list');
 
     if (list) {
@@ -832,9 +955,13 @@ cycleDashboardStrip() {
 
     if (this.domCache.greetingMessage) {
         const weekday = currentTime.toLocaleDateString('en-US', { weekday: 'long' });
-        this.domCache.greetingMessage.textContent = morningCountdownVisible
-            ? `Happy ${weekday}`
-            : greeting;
+        if (this.isWeekendMode(currentTime)) {
+            this.domCache.greetingMessage.textContent = `Happy ${weekday}.  Enjoy the weekend!`;
+        } else {
+            this.domCache.greetingMessage.textContent = morningCountdownVisible
+                ? `Happy ${weekday}`
+                : greeting;
+        }
     }
 
     //     const shouldBlackout =
@@ -953,12 +1080,30 @@ cycleDashboardStrip() {
 
         async loadCommute() {
             try {
+                if (this.isWeekendMode()) {
+                    this.weekendDestinationsLoading = true;
+                    this.weekendDestinationsError = null;
+                    this.renderDashboardStrip();
+
+                    const response = await fetch('/api/weekend-destinations');
+                    const data = await response.json();
+                    if (!response.ok || data.error) throw new Error(data.error || 'Weekend routes unavailable');
+                    if (!Array.isArray(data.destinations) || !data.destinations.length) {
+                        throw new Error('Weekend routing service returned no destinations');
+                    }
+                    this.weekendDestinations = data.destinations || [];
+                    this.weekendDestinationsLoading = false;
+                    this.renderDashboardStrip();
+                    return;
+                }
+
                 const response = await fetch('/api/commute');
                 const commuteData = await response.json();
 
                 if (commuteData.error) {
                     console.error('Commute API error:', commuteData.error);
-                    this.liveCommuteTab = null;
+                    this.liveCommuteTab = window.TabHelpers.buildCommuteTab({ error: true });
+                    this.renderDashboardStrip();
                     return;
                 }
 
@@ -966,7 +1111,14 @@ cycleDashboardStrip() {
                 this.renderDashboardStrip();
             } catch (error) {
                 console.error('Error loading commute:', error);
-                this.liveCommuteTab = null;
+                if (this.isWeekendMode()) {
+                    this.weekendDestinations = [];
+                    this.weekendDestinationsLoading = false;
+                    this.weekendDestinationsError = error.message || 'Weekend routes unavailable';
+                } else {
+                    this.liveCommuteTab = window.TabHelpers.buildCommuteTab({ error: true });
+                }
+                this.renderDashboardStrip();
             }
         }
 
