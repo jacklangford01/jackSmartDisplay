@@ -27,6 +27,8 @@ exec "$CHROMIUM_BIN" \
     --noerrdialogs \
     --disable-infobars \
     --disable-session-crashed-bubble \
+    --password-store=basic \
+    --disable-features=PasswordManager,AutofillServerCommunication \
     --no-first-run \
     --kiosk \
     --app="$KIOSK_URL"
