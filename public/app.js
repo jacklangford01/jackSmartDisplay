@@ -1980,15 +1980,26 @@ showPhoto(photo) {
 
     loadSettings() {
         const saved = localStorage.getItem('smartDisplaySettings');
-        return saved ? JSON.parse(saved) : {
+        const settings = saved ? JSON.parse(saved) : {
             photoQuery: 'nature landscape',
             haUrl: 'http://your-home-assistant-url:8123',
-            latitude: 33.4255,
-            longitude: -111.9400,
+            latitude: 33.514961,
+            longitude: -112.042175,
             summaryEnabled: true,
             summaryTime: '08:00',
             userName: ''
         };
+
+        // Apply the July 2026 home-location update once per browser.
+        const locationMigrationKey = 'homeLocationMigration20260722';
+        if (!localStorage.getItem(locationMigrationKey)) {
+            settings.latitude = 33.514961;
+            settings.longitude = -112.042175;
+            localStorage.setItem('smartDisplaySettings', JSON.stringify(settings));
+            localStorage.setItem(locationMigrationKey, 'complete');
+        }
+
+        return settings;
     }
 // if hourly summaries are enabled can re implement this...
 

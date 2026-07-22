@@ -585,11 +585,11 @@ app.get('/api/summary', async (req, res) => {
     const timeout = 10000; // 10 second timeout
     const [weatherResponse, hourlyWeatherResponse, calendarResponse] = await Promise.allSettled([
       Promise.race([
-        axios.get(`http://localhost:${PORT}/api/weather?lat=${process.env.LATITUDE || '40.7128'}&lon=${process.env.LONGITUDE || '-74.0060'}`),
+        axios.get(`http://localhost:${PORT}/api/weather?lat=${process.env.DEFAULT_LATITUDE || '33.514961'}&lon=${process.env.DEFAULT_LONGITUDE || '-112.042175'}`),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Weather timeout')), timeout))
       ]),
       Promise.race([
-        axios.get(`https://api.open-meteo.com/v1/forecast?latitude=${process.env.LATITUDE || '40.7128'}&longitude=${process.env.LONGITUDE || '-74.0060'}&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m,wind_direction_10m,uv_index&temperature_unit=fahrenheit&timezone=auto`),
+        axios.get(`https://api.open-meteo.com/v1/forecast?latitude=${process.env.DEFAULT_LATITUDE || '33.514961'}&longitude=${process.env.DEFAULT_LONGITUDE || '-112.042175'}&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m,wind_direction_10m,uv_index&temperature_unit=fahrenheit&timezone=auto`),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Hourly weather timeout')), timeout))
       ]),
       Promise.race([
