@@ -18,4 +18,6 @@ KIOSK_URL="http://localhost:3000"
 sleep 8
 
 echo 'Starting Chromium...'
-/usr/bin/chromium-browser --noerrdialogs --disable-infobars --kiosk --app=$KIOSK_URL
+# Replace this shell with Chromium so systemd tracks crashes and OOM kills
+# directly and can restart the kiosk reliably.
+exec /usr/bin/chromium-browser --noerrdialogs --disable-infobars --kiosk --app="$KIOSK_URL"

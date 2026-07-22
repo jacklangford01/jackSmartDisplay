@@ -2,14 +2,17 @@
 Description=Kiosk
 Wants=graphical.target
 After=graphical.target
+StartLimitIntervalSec=0
 
 [Service]
 Environment="DISPLAY=:0"
 Type=simple
-ExecStart=/bin/bash /home/pi/SmartDisplayPi/kiosk.sh
-Restart=on-abort
-User=pi
-Group=pi
+ExecStart=/bin/bash /home/jacklangford/jackSmartDisplay/kiosk.sh
+Restart=always
+RestartSec=30
+KillMode=control-group
+User=jacklangford
+Group=jacklangford
 
 [Install]
 WantedBy=graphical.target
