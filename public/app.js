@@ -26,7 +26,7 @@ function getMasterTimeOfDay() {
 
     // manual for testing
 
-    // return 'morning';
+    // return 'earlyMorning';
 
 
 }
@@ -141,6 +141,7 @@ class SmartDisplay {
         this.currentPhotoIndex = 0;
         this.photoInterval = null;
         this.settings = this.loadSettings();
+        this.morningCountdownTestOffset = this.getMorningCountdownTestOffset();
         this.summaryShown = false;
         this.lastSummaryDate = new Date().toDateString();
 
@@ -195,6 +196,10 @@ class SmartDisplay {
             rightTouchArea: document.getElementById('rightTouchArea'),
             photoSlideshow: document.getElementById('photoSlideshow'),
             greetingMessage: document.getElementById('greetingMessage'),
+            morningCountdown: document.getElementById('morningCountdown'),
+            morningCountdownGreeting: document.getElementById('morningCountdownGreeting'),
+            morningCountdownTime: document.getElementById('morningCountdownTime'),
+            morningCountdownTest: document.getElementById('morningCountdownTest'),
             timeDisplay: document.querySelector('.time'),
             dateDisplay: document.querySelector('.date'),
             weatherDisplay: document.getElementById('weatherDisplay'),
@@ -220,6 +225,54 @@ class SmartDisplay {
         return navigator.hardwareConcurrency <= 4 || 
                navigator.deviceMemory <= 4 ||
                /arm|aarch64/i.test(navigator.platform);
+    }
+
+    getMorningCountdownTestOffset() {
+        const testTime = new URLSearchParams(window.location.search).get('testMorningCountdown');
+        if (!testTime) return null;
+
+        const match = testTime.match(/^(\d{1,2}):(\d{2})$/);
+        if (!match) {
+            console.warn('Use testMorningCountdown in HH:MM format, for example 05:45.');
+            return null;
+        }
+
+        const hours = Number(match[1]);
+        const minutes = Number(match[2]);
+        if (hours > 23 || minutes > 59) return null;
+
+        const now = new Date();
+        const simulatedStart = new Date(now);
+        simulatedStart.setHours(hours, minutes, 0, 0);
+        return simulatedStart.getTime() - now.getTime();
+    }
+
+    getMorningCountdownTime() {
+        return new Date(Date.now() + (this.morningCountdownTestOffset || 0));
+    }
+
+    updateMorningCountdown(currentTime) {
+        const widget = this.domCache.morningCountdown;
+        if (!widget) return false;
+
+        const minutesSinceMidnight = currentTime.getHours() * 60 + currentTime.getMinutes();
+        const isCountdownTime = minutesSinceMidnight >= 330 && minutesSinceMidnight < 360;
+        widget.hidden = !isCountdownTime;
+
+        if (!isCountdownTime) return false;
+
+        const workStart = new Date(currentTime);
+        workStart.setHours(6, 0, 0, 0);
+        const remainingSeconds = Math.max(0, Math.ceil((workStart - currentTime) / 1000));
+        const displayMinutes = Math.floor(remainingSeconds / 60);
+        const displaySeconds = remainingSeconds % 60;
+        const weekday = currentTime.toLocaleDateString('en-US', { weekday: 'long' });
+
+        this.domCache.morningCountdownGreeting.textContent = `Happy ${weekday}`;
+        this.domCache.morningCountdownTime.textContent =
+            `${String(displayMinutes).padStart(2, '0')}:${String(displaySeconds).padStart(2, '0')}`;
+        this.domCache.morningCountdownTest.hidden = this.morningCountdownTestOffset === null;
+        return true;
     }
 
     init() {
@@ -293,21 +346,10 @@ class SmartDisplay {
         //display refresh
         setInterval(() => this.animateTextRefresh(), 600000);
 
-        // Refresh at the top of every hour
-        //(helps mitigate chromium memory capacity issues)
-        const scheduleHourlyRefresh = () => {
-            const now = new Date();
-
-            const msUntilNextHour =
-                ((60 - now.getMinutes()) * 60 * 1000) -
-                (now.getSeconds() * 1000);
-
-            setTimeout(() => {
-                window.location.reload();
-            }, msUntilNextHour);
-        };
-
-        scheduleHourlyRefresh();
+        // Periodically restart the page to release image memory in kiosk browsers.
+        // Reloading schedules a fresh timeout, so an interval is unnecessary.
+        const autoRefreshInterval = 15 * 60 * 1000;
+        setTimeout(() => window.location.reload(), autoRefreshInterval);
 
         // dashboard strip
         // setInterval(() => this.renderDashboardStrip(), intervals.time);
@@ -541,6 +583,7 @@ cycleDashboardStrip() {
         document.getElementById('closeSettings').addEventListener('click', () => this.closeSettings());
         document.getElementById('saveSettings').addEventListener('click', () => this.saveSettings());
         document.getElementById('refreshPage').addEventListener('click', () => this.refreshPage());
+        document.getElementById('reloadTestButton')?.addEventListener('click', () => this.refreshPage());
         document.getElementById('summaryRefreshBtn').addEventListener('click', () => this.refreshSummary());
         
         // Hourly forecast overlay
@@ -738,7 +781,7 @@ cycleDashboardStrip() {
         const timeElement = this.domCache.timeDisplay;
         const dateElement = this.domCache.dateDisplay;
 
-        const currentTime = new Date();
+        const currentTime = this.getMorningCountdownTime();
         timeElement.textContent = currentTime.toLocaleTimeString('en-US', {
             hour: '2-digit',
             minute: '2-digit',
@@ -767,17 +810,22 @@ cycleDashboardStrip() {
         greeting = 'Goodnight';
     }
 
+    const morningCountdownVisible = this.updateMorningCountdown(currentTime);
+
     if (this.domCache.greetingMessage) {
-        this.domCache.greetingMessage.textContent = greeting;
+        const weekday = currentTime.toLocaleDateString('en-US', { weekday: 'long' });
+        this.domCache.greetingMessage.textContent = morningCountdownVisible
+            ? `Happy ${weekday}`
+            : greeting;
     }
 
-        const shouldBlackout =
-        hour > 22 ||
-        hour < 7;
+    //     const shouldBlackout =
+    //     hour > 22 ||
+    //     hour < 7;
 
-    if (this.domCache.blackoutOverlay) {
-        this.domCache.blackoutOverlay.style.display = shouldBlackout ? 'block' : 'none';
-    }
+    // if (this.domCache.blackoutOverlay) {
+    //     this.domCache.blackoutOverlay.style.display = shouldBlackout ? 'block' : 'none';
+    // }
 
     }
 
@@ -2020,6 +2068,9 @@ showPhoto(photo) {
     }
 
     refreshPage() {
+        // Schedule this first so a non-critical UI cleanup error cannot prevent reload.
+        setTimeout(() => window.location.reload(), 500);
+
         // Close settings modal first
         this.closeSettings();
         
@@ -2040,10 +2091,6 @@ showPhoto(photo) {
         loadingMsg.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Refreshing page...';
         document.body.appendChild(loadingMsg);
         
-        // Refresh the page after a short delay
-        setTimeout(() => {
-            window.location.reload();
-        }, 500);
     }
 
     openHourlyForecast(dayIndex) {
@@ -2195,7 +2242,7 @@ showPhoto(photo) {
         // Re-enable body scrolling on Raspberry Pi
         document.body.style.overflow = '';
         document.body.style.position = '';
-        document.Sbody.style.width = '';
+        document.body.style.width = '';
     }
 }
 

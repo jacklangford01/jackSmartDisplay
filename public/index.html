@@ -34,6 +34,16 @@
                                 Check internet connection?
                             </div>
                         </div>
+
+                        <div class="morning-countdown" id="morningCountdown" hidden>
+                            <div class="morning-countdown-header">
+                                <i class="fas fa-sun"></i>
+                                <span id="morningCountdownGreeting">Happy Monday</span>
+                            </div>
+                            <div class="morning-countdown-label">Work starts in</div>
+                            <div class="morning-countdown-time" id="morningCountdownTime">30:00</div>
+                            <div class="morning-countdown-test" id="morningCountdownTest" hidden>Test mode</div>
+                        </div>
                         
                             <div class="right-corner-stack">
 
@@ -312,6 +322,17 @@
 
     <div id="blackoutOverlay"></div>
     <div id="blueLightOverlay"></div>
+
+    <!-- TEST RELOAD BUTTON: comment out or remove this block after testing. -->
+    <!-- <button
+        id="reloadTestButton"
+        type="button"
+        title="Test browser reload"
+        style="position: fixed; right: 16px; bottom: 16px; z-index: 10001; padding: 10px 14px;"
+    >
+        <i class="fas fa-sync-alt"></i> Test Reload
+    </button> -->
+    <!-- END TEST RELOAD BUTTON -->
 
     <script src="tabs.js"></script>
     <script src="app.js"></script>

@@ -2354,3 +2354,64 @@ Slide and description*/
     font-weight: 600;
     color: rgba(255,255,255,0.72);
 }
+
+/* 5:30–6:00 AM work countdown */
+.morning-countdown {
+    position: absolute;
+    right: 28px;
+    bottom: 28px;
+    min-width: 230px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    background: rgba(15, 20, 32, 0.48);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-left: 4px solid #f6c453;
+    backdrop-filter: blur(18px);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+    color: #fff;
+    z-index: 20;
+}
+
+.morning-countdown[hidden] {
+    display: none;
+}
+
+.morning-countdown-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.morning-countdown-header i {
+    color: #f6c453;
+}
+
+.morning-countdown-label {
+    margin-top: 10px;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.morning-countdown-time {
+    margin-top: 2px;
+    font-size: 42px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
+}
+
+.morning-countdown-test {
+    margin-top: 8px;
+    color: #f6c453;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
