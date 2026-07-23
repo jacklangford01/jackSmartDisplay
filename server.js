@@ -221,50 +221,54 @@ app.get('/', (req, res) => {
 //   }
 // });
 
+const calendarCache = new Map();
+const CALENDAR_CACHE_MS = 5 * 60 * 1000;
+
+async function fetchCalendarEvents(days, maxResults) {
+  if (!calendar) return [];
+
+  const cacheKey = `${days}:${maxResults}`;
+  const cached = calendarCache.get(cacheKey);
+  if (cached && Date.now() - cached.time < CALENDAR_CACHE_MS) {
+    return cached.events;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const endTime = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  const responses = await Promise.all(CALENDAR_IDS.map(calendarId =>
+    calendar.events.list({
+      calendarId,
+      timeMin: today.toISOString(),
+      timeMax: endTime.toISOString(),
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults
+    }).catch(error => {
+      console.error(`Error fetching calendar ${calendarId}:`, error.message);
+      return { data: { items: [] } };
+    })
+  ));
+
+  const eventsByOccurrence = new Map();
+  for (const event of responses.flatMap(response => response.data.items || [])) {
+    const start = event.start?.dateTime || event.start?.date || '';
+    eventsByOccurrence.set(`${event.id}:${start}`, event);
+  }
+
+  const events = [...eventsByOccurrence.values()].sort((a, b) =>
+    new Date(a.start.dateTime || a.start.date) -
+    new Date(b.start.dateTime || b.start.date)
+  );
+
+  calendarCache.set(cacheKey, { time: Date.now(), events });
+  return events;
+}
+
 // Google Calendar API endpoint
 app.get('/api/calendar/events', async (req, res) => {
   try {
-    if (!calendar) {
-      console.log('No Google Calendar API available, returning empty calendar data');
-      return res.json([]);
-    }
-
-    const now = new Date();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const endTime = new Date(now.getTime() + (24 * 60 * 60 * 1000));
-
-    const responses = await Promise.all(
-      CALENDAR_IDS.map(calendarId =>
-        calendar.events.list({
-          calendarId,
-          timeMin: today.toISOString(),
-          timeMax: endTime.toISOString(),
-          singleEvents: true,
-          orderBy: 'startTime',
-          maxResults: 15
-        }).catch(error => {
-          console.error(`Error fetching calendar ${calendarId}:`, error.message);
-          return { data: { items: [] } };
-        })
-      )
-    );
-
-    const allEvents = responses.flatMap(response => response.data.items || []);
-
-    const uniqueEvents = allEvents.filter(
-      (event, index, self) =>
-        index === self.findIndex(e => e.id === event.id)
-    );
-
-    uniqueEvents.sort((a, b) => {
-      const aStart = new Date(a.start.dateTime || a.start.date);
-      const bStart = new Date(b.start.dateTime || b.start.date);
-      return aStart - bStart;
-    });
-
-    res.json(uniqueEvents);
+    res.json(await fetchCalendarEvents(1, 15));
   } catch (error) {
     console.error('Error fetching calendar events:', error);
     res.json([]);
@@ -311,49 +315,7 @@ app.get('/api/tasks', async (req, res) => {
 // Google Calendar API endpoint for next week (agenda view)
 app.get('/api/calendar/agenda', async (req, res) => {
   try {
-    if (!calendar) {
-      console.log('No Google Calendar API available, returning mock agenda data');
-      return res.json([]);
-    }
-
-    const now = new Date();
-    const endTime = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const responses = await Promise.all(
-      CALENDAR_IDS.map(calendarId =>
-        calendar.events.list({
-          calendarId,
-          timeMin: today.toISOString(),
-          timeMax: endTime.toISOString(),
-          singleEvents: true,
-          orderBy: 'startTime',
-          maxResults: 50
-        }).catch(error => {
-          console.error(`Error fetching agenda calendar ${calendarId}:`, error.message);
-          return { data: { items: [] } };
-        })
-      )
-    );
-
-    const allEvents = responses.flatMap(response => response.data.items || []);
-
-    const uniqueEvents = allEvents.filter(
-      (event, index, self) =>
-        index === self.findIndex(e =>
-          e.id === event.id &&
-          (e.start?.dateTime || e.start?.date) === (event.start?.dateTime || event.start?.date)
-        )
-    );
-
-    uniqueEvents.sort((a, b) => {
-      const aStart = new Date(a.start.dateTime || a.start.date);
-      const bStart = new Date(b.start.dateTime || b.start.date);
-      return aStart - bStart;
-    });
-
-    res.json(uniqueEvents);
+    res.json(await fetchCalendarEvents(7, 50));
   } catch (error) {
     console.error('Error fetching calendar agenda:', error);
     res.json([]);
@@ -567,16 +529,25 @@ app.get('/api/photo-file/:id', async (req, res) => {
 
 
 
+const weatherCache = new Map();
+const WEATHER_CACHE_MS = 10 * 60 * 1000;
+
 // Weather API endpoint (using OpenMeteo)
 app.get('/api/weather', async (req, res) => {
   try {
     const { lat, lon } = req.query;
+    const cacheKey = `${lat}:${lon}`;
+    const cached = weatherCache.get(cacheKey);
+    if (cached && Date.now() - cached.time < WEATHER_CACHE_MS) {
+      return res.json(cached.data);
+    }
     
     const response = await fetch(
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index&hourly=temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,wind_direction_10m,precipitation_probability,wind_gusts_10m,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America/Phoenix`
     );
     
     const weatherData = await response.json();
+    weatherCache.set(cacheKey, { time: Date.now(), data: weatherData });
     res.json(weatherData);
   } catch (error) {
     console.error('Error fetching weather:', error);

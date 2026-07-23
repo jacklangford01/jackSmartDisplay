@@ -173,6 +173,8 @@ class SmartDisplay {
         this.isLowPowerMode = this.detectLowPowerMode();
         this.lastUpdateTime = 0;
         this.lastTimeBarUpdate = 0;
+        this.lastBlueLightLevel = null;
+        this.latestWeatherData = null;
         this.updateThrottle = 1000; // 1 second throttle for updates
         
         // Navigation control flags
@@ -217,6 +219,7 @@ class SmartDisplay {
             homeAssistantFrame: document.getElementById('homeAssistantFrame'),
             settingsModal: document.getElementById('settingsModal'),
             blueLightOverlay: document.getElementById('blueLightOverlay'),
+            headerTimeDisplays: document.querySelectorAll('.header-time-display'),
             weatherTrend: document.getElementById('weatherTrend'),
             dashboardStrip: document.getElementById('dashboardStrip'),
             dashboardStripHeader: document.getElementById('dashboardStripHeader'),
@@ -299,8 +302,7 @@ class SmartDisplay {
     init() {
         this.setupEventListeners();
         this.updateTime();
-        this.loadCalendarEvents();
-        this.loadEveningScheduleEvents();
+        this.loadCalendarData();
         this.loadWeather();
         this.loadAirQuality();
         this.loadNews();
@@ -318,54 +320,33 @@ class SmartDisplay {
                 time: 2000,
                 weather: 45 * 60 * 1000,
                 calendar: 15 * 60 * 1000,
-                photos: 3 * 60 * 1000,
-                forecast: 20 * 60 * 1000,
-                agenda: 20 * 60 * 1000,
                 summary: 30 * 1000
             } : {
                 time: 1000,
                 weather: 30 * 60 * 1000,
                 calendar: 10 * 60 * 1000,
-                photos: 90 * 1000,
-                forecast: 15 * 60 * 1000,
-                agenda: 15 * 60 * 1000,
                 summary: 60 * 1000
             };
         
-        // Update time with throttling
-        setInterval(() => this.updateTime(), intervals.time);
+        // One lightweight UI tick replaces three separate high-frequency timers.
+        this.schedulePeriodic(() => {
+            this.updateTime();
+            this.updateBlueLightFilter();
+            this.updateAllTimeBars();
+        }, intervals.time);
 
-        // blue light update
-        setInterval(() => this.updateBlueLightFilter(), intervals.time);
-        
-        // Update weather less frequently
-        setInterval(() => this.loadWeather(), intervals.weather);
-        
-        // Update calendar less frequently
-        setInterval(() => this.loadCalendarEvents(), intervals.calendar);
-        setInterval(() => this.loadEveningScheduleEvents(), intervals.calendar);
-        
-        // Refresh photos less frequently
-        // setInterval(() => this.loadPhotos(), intervals.photos);
-        
-        // Load forecast and agenda initially
-        this.loadForecast();
-        this.loadAgenda();
-        
-        // Refresh forecast and agenda less frequently
-        setInterval(() => this.loadForecast(), intervals.forecast);
-        setInterval(() => this.loadAgenda(), intervals.agenda);
+        // Network tasks are scheduled after completion, preventing slow requests
+        // from stacking up and consuming extra memory.
+        this.schedulePeriodic(() => this.loadWeather(), intervals.weather);
+        this.schedulePeriodic(() => this.loadCalendarData(), intervals.calendar);
         
         // Check for hourly summary less frequently
         this.checkHourlySummary();
-        setInterval(() => this.checkHourlySummary(), intervals.summary);
+        this.schedulePeriodic(() => this.checkHourlySummary(), intervals.summary);
         
         // Update time bars less frequently
         this.updateAllTimeBars();
-        setInterval(() => this.updateAllTimeBars(), intervals.time);
-
-        //display refresh
-        setInterval(() => this.animateTextRefresh(), 600000);
+        this.schedulePeriodic(() => this.animateTextRefresh(), 600000);
 
         // Periodically restart the page to release image memory in kiosk browsers.
         // Reloading schedules a fresh timeout, so an interval is unnecessary.
@@ -376,20 +357,20 @@ class SmartDisplay {
         // setInterval(() => this.renderDashboardStrip(), intervals.time);
 
         //commute data
-        setInterval(() => this.loadCommute(), 10 * 60 * 1000);
+        this.schedulePeriodic(() => this.loadCommute(), 10 * 60 * 1000);
 
         //markets and crypto data
-        setInterval(() => this.loadMarkets(), 60 * 60 * 1000);
-        setInterval(() => this.loadCrypto(), 15 * 60 * 1000);
+        this.schedulePeriodic(() => this.loadMarkets(), 60 * 60 * 1000);
+        this.schedulePeriodic(() => this.loadCrypto(), 15 * 60 * 1000);
 
         // news data (making sure it does not go over 100 requests per day limit of newsapi)
-        setInterval(() => this.loadNews(), 12 * 60 * 60 * 1000);
+        this.schedulePeriodic(() => this.loadNews(), 12 * 60 * 60 * 1000);
 
         // Air quality data
-        setInterval(() => this.loadAirQuality(), 30 * 60 * 1000);
+        this.schedulePeriodic(() => this.loadAirQuality(), 30 * 60 * 1000);
 
         // Email Data
-        setInterval(() => this.loadImportantEmails(), 10 * 60 * 1000);
+        this.schedulePeriodic(() => this.loadImportantEmails(), 10 * 60 * 1000);
         
         // Debounced resize handler
         let resizeTimeout;
@@ -401,6 +382,20 @@ class SmartDisplay {
                 }
             }, 250);
         });
+    }
+
+    schedulePeriodic(task, intervalMs) {
+        const run = async () => {
+            try {
+                await task();
+            } catch (error) {
+                console.error('Scheduled refresh failed:', error);
+            } finally {
+                setTimeout(run, intervalMs);
+            }
+        };
+
+        return setTimeout(run, intervalMs);
     }
 
 //stock display logic:
@@ -846,13 +841,13 @@ cycleDashboardStrip() {
             this.domCache.calendarCard.style.display = 'none';
             this.domCache.leftTouchArea.style.pointerEvents = 'none';
             this.domCache.rightTouchArea.style.pointerEvents = 'none';
-            this.loadForecast();
+            this.loadWeather();
         } else if (index === 4) {
             // Calendar Agenda card
             this.domCache.calendarCard.style.display = 'none';
             this.domCache.leftTouchArea.style.pointerEvents = 'none';
             this.domCache.rightTouchArea.style.pointerEvents = 'none';
-            this.loadAgenda();
+            this.loadCalendarData();
         }
     }
 
@@ -1006,8 +1001,7 @@ cycleDashboardStrip() {
         });
         
         // Update all time displays in headers
-        const headerTimeDisplays = document.querySelectorAll('.header-time-display');
-        headerTimeDisplays.forEach(timeDisplay => {
+        this.domCache.headerTimeDisplays.forEach(timeDisplay => {
             timeDisplay.textContent = timeString;
         });
     }
@@ -1046,12 +1040,14 @@ cycleDashboardStrip() {
                     return;
                 }
 
+                this.latestWeatherData = weatherData;
                 this.liveWeatherTab = window.TabHelpers.buildWeatherTab(
                     weatherData,
                     this.getWeatherDescription.bind(this)
                 );
 
                 this.updateWeatherDisplay(weatherData);
+                this.updateForecastDisplay(weatherData);
                 this.renderDashboardStrip();
                 this.updateUVDisplay(weatherData);
                 this.updateWeatherTemperatureColor(weatherData);
@@ -1478,44 +1474,31 @@ getWeatherDescription(code) {
         return `<span class="wind-direction" style="transform: rotate(${degrees}deg);">→</span>`;
     }
 
-    async loadCalendarEvents() {
+    async loadCalendarData() {
         try {
-            const response = await fetch('/api/calendar/events');
+            // The seven-day agenda already contains everything needed by the
+            // main calendar, agenda card, and dashboard schedule tabs.
+            const response = await fetch('/api/calendar/agenda');
             const events = await response.json();
 
             this.liveNextUpTab = window.TabHelpers.buildNextUpTab(events);
             this.liveMorningScheduleTab = window.TabHelpers.buildMorningScheduleTab(events);
-            // this.liveEveningScheduleTab = window.TabHelpers.buildEveningScheduleTab(events);
-
-            this.updateCalendarDisplay(events);
-            this.renderDashboardStrip();
-        } catch (error) {
-            console.error('Error loading calendar events:', error);
-
-            this.liveNextUpTab = null;
-            // this.liveMorningScheduleTab = null;
-            this.liveEveningScheduleTab = null;
-
-            this.updateCalendarDisplay([]);
-            this.renderDashboardStrip();
-        }
-    }
-
-    async loadEveningScheduleEvents() {
-        try {
-            const response = await fetch('/api/calendar/agenda');
-            const events = await response.json();
-
             this.liveEveningScheduleTab = window.TabHelpers.buildEveningScheduleTab(events);
             this.liveTomorrowTab = window.TabHelpers.buildTomorrowTab(events);
 
+            this.updateCalendarDisplay(events);
+            this.updateAgendaDisplay(events);
             this.renderDashboardStrip();
         } catch (error) {
-            console.error('Error loading evening schedule events:', error);
+            console.error('Error loading calendar data:', error);
 
+            this.liveNextUpTab = null;
+            this.liveMorningScheduleTab = null;
             this.liveEveningScheduleTab = null;
             this.liveTomorrowTab = null;
 
+            this.updateCalendarDisplay([]);
+            this.updateAgendaDisplay([]);
             this.renderDashboardStrip();
         }
     }
@@ -1955,27 +1938,6 @@ showPhoto(photo) {
         detail.textContent = `PM2.5 ${pm25?.toFixed(1) ?? '--'} µg/m³`;
     }
 
-    async loadForecast() {
-        try {
-            if (!this.settings.latitude || !this.settings.longitude) {
-                console.log('Weather coordinates not configured');
-                return;
-            }
-
-            const response = await fetch(`/api/weather?lat=${this.settings.latitude}&lon=${this.settings.longitude}`);
-            const weatherData = await response.json();
-
-            if (weatherData.error) {
-                console.error('Weather API error:', weatherData.error);
-                return;
-            }
-
-            this.updateForecastDisplay(weatherData);
-        } catch (error) {
-            console.error('Error loading forecast:', error);
-        }
-    }
-
     updateForecastDisplay(weatherData) {
         const forecastContent = this.domCache.forecastContent;
         
@@ -2046,18 +2008,6 @@ showPhoto(photo) {
         }).join('');
 
         forecastContent.innerHTML = forecastHtml;
-    }
-
-    async loadAgenda() {
-        try {
-            const response = await fetch('/api/calendar/agenda');
-            const events = await response.json();
-
-            this.updateAgendaDisplay(events);
-        } catch (error) {
-            console.error('Error loading agenda:', error);
-            this.updateAgendaDisplay([]);
-        }
     }
 
     updateAgendaDisplay(events) {
@@ -2341,6 +2291,8 @@ showPhoto(photo) {
     if (!overlay) return;
 
     const filterLevel = getBlueLightFilterLevel();
+    if (filterLevel === this.lastBlueLightLevel) return;
+    this.lastBlueLightLevel = filterLevel;
 
     if (filterLevel === 'strong') {
         overlay.style.background = 'rgba(255, 140, 0, 0.28)';
@@ -2353,8 +2305,12 @@ showPhoto(photo) {
 
     async loadHourlyForecastData(dayIndex, grid) {
         try {
-            const response = await fetch(`/api/weather?lat=${this.settings.latitude}&lon=${this.settings.longitude}`);
-            const weatherData = await response.json();
+            let weatherData = this.latestWeatherData;
+            if (!weatherData) {
+                const response = await fetch(`/api/weather?lat=${this.settings.latitude}&lon=${this.settings.longitude}`);
+                weatherData = await response.json();
+                this.latestWeatherData = weatherData;
+            }
             
             if (!weatherData.hourly) {
                 grid.innerHTML = '<div class="loading">No hourly data available</div>';
