@@ -1788,7 +1788,17 @@ showPhoto(photo) {
     const slideshowContainer = this.domCache.photoSlideshow;
     if (!slideshowContainer || !photo) return;
 
-    const imageUrl = typeof photo === 'string' ? photo : photo.url;
+    let imageUrl = typeof photo === 'string' ? photo : photo.url;
+
+    // Ask the local proxy for only enough pixels to fill this display. Capping
+    // DPR avoids oversized decodes on small, high-density kiosk screens.
+    if (imageUrl.startsWith('/api/photo-file/')) {
+        const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.25);
+        const width = Math.ceil(window.innerWidth * pixelRatio);
+        const height = Math.ceil(window.innerHeight * pixelRatio);
+        const separator = imageUrl.includes('?') ? '&' : '?';
+        imageUrl = `${imageUrl}${separator}w=${width}&h=${height}`;
+    }
 
     let slide = slideshowContainer.querySelector('.photo-slide');
 

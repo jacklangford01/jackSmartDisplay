@@ -1,10 +1,17 @@
 const express = require('express');
 const path = require('path');
+const { pipeline } = require('stream/promises');
 const cors = require('cors');
 const { google } = require('googleapis');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const axios = require('axios');
+const sharp = require('sharp');
 require('dotenv').config();
+
+// Favor predictable RAM use over throughput; the display only changes one
+// photo per minute, so one image-processing job at a time is sufficient.
+sharp.cache({ memory: 16, files: 20, items: 50 });
+sharp.concurrency(1);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -488,17 +495,20 @@ app.get('/api/photo-file/:id', async (req, res) => {
       fields: 'mimeType,name'
     });
 
-    const response = await drive.files.get(
-      {
-        fileId,
-        alt: 'media'
-      },
-      {
-        responseType: 'arraybuffer'
-      }
-    );
+    // Camera originals can decode to hundreds of MB in Chromium. Resize them
+    // here to approximately the kiosk's display size so Drive can stay untouched.
+    const requestedWidth = Number.parseInt(req.query.w, 10);
+    const requestedHeight = Number.parseInt(req.query.h, 10);
+    const width = Math.min(Math.max(requestedWidth || 1920, 320), 2560);
+    const height = Math.min(Math.max(requestedHeight || 1080, 240), 1440);
+    const imageOptions = {
+      width,
+      height,
+      fit: 'cover',
+      position: 'centre',
+      withoutEnlargement: true
+    };
 
-    const buffer = Buffer.from(response.data);
     const mimeType = meta.data.mimeType || '';
 
     const isHeic =
@@ -508,22 +518,46 @@ app.get('/api/photo-file/:id', async (req, res) => {
       meta.data.name.toLowerCase().endsWith('.heif');
 
     if (isHeic) {
+      const response = await drive.files.get(
+        { fileId, alt: 'media' },
+        { responseType: 'arraybuffer' }
+      );
+      const buffer = Buffer.from(response.data);
       const jpegBuffer = await heicConvert({
         buffer,
         format: 'JPEG',
-        quality: 0.9
+        quality: 0.82
       });
 
+      const resized = await sharp(Buffer.from(jpegBuffer))
+        .rotate()
+        .resize(imageOptions)
+        .jpeg({ quality: 82, chromaSubsampling: '4:2:0' })
+        .toBuffer();
+
+      res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
       res.setHeader('Content-Type', 'image/jpeg');
-      return res.send(Buffer.from(jpegBuffer));
+      return res.send(resized);
     }
 
-    res.setHeader('Content-Type', mimeType || 'image/jpeg');
-    res.send(buffer);
+    const response = await drive.files.get(
+      { fileId, alt: 'media' },
+      { responseType: 'stream' }
+    );
+    const resizeStream = sharp()
+      .rotate()
+      .resize(imageOptions)
+      .jpeg({ quality: 82, chromaSubsampling: '4:2:0' });
+
+    res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+    res.setHeader('Content-Type', 'image/jpeg');
+    await pipeline(response.data, resizeStream, res);
 
   } catch (err) {
     console.error('Photo stream error:', err.message);
-    res.status(500).send('Failed to load image');
+    if (!res.headersSent) {
+      res.status(500).send('Failed to load image');
+    }
   }
 });
 
